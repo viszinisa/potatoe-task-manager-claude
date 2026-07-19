@@ -23,10 +23,25 @@ not say.
 - **All inter-service addressing uses compose SERVICE names** (nginx upstreams,
   DSNs, prometheus targets). That is what made dropping `container_name` safe —
   service names did not change. Keep it that way.
-- **nginx resolves `frontend` at runtime** (`resolver 127.0.0.11`, upstream in a
-  variable) so it boots even when `frontend` is down, returning 502. A static
-  `proxy_pass http://frontend:5173` makes nginx refuse to start instead. Do not
-  "simplify" it back.
+- **Every nginx upstream — proxy, fastcgi, and the mariadb stream — uses the
+  resolver-variable pattern**: `resolver 127.0.0.11 valid=10s;` plus
+  `set $x_upstream ...; proxy_pass/fastcgi_pass $x_upstream;`. A static
+  `proxy_pass`/`fastcgi_pass` target makes nginx refuse to start if that
+  backend is down at boot; the variable form defers the DNS lookup to
+  request time, so nginx boots regardless of backend order and returns
+  502/refuses the connection until the backend is up. Do not "simplify" any
+  vhost or the stream block back to a static target.
+- **nginx has no `depends_on`.** The resolver-variable pattern is what makes
+  that safe — nginx never needs a backend up at its own startup.
+- **Host ports are nginx-only: 80 (all `*.ptm.local` HTTP vhosts) and 3306
+  (raw TCP stream to mariadb).** No other service publishes a host port; DB
+  clients and browsers alike go through nginx.
+- **`dev1.ptm.local` … `dev5.ptm.local` are reserved, unclaimed vhost slots**
+  for ad-hoc one-off work — add a conf.d file when claiming one, don't reuse
+  the fixed service names (`grafana.ptm.local` etc.) for anything else.
+- **seaweedfs S3 auth lives in `_docker/seaweedfs/s3.json`**, mounted
+  read-only into the container; `s3.ptm.local` proxies it 1:1 (SigV4 needs
+  `Host` passed through unchanged, see `s3.conf`).
 
 ## Traps
 
@@ -46,7 +61,7 @@ not say.
       io_uring; MariaDB falls back and reports healthy.
     - Grafana `Failed to install plugin ... permission denied` (bundled plugins
       on the data volume) and `Failed to read plugin provisioning files ...
-      no such file or directory` (no `provisioning/plugins` dir), plus
+no such file or directory` (no `provisioning/plugins` dir), plus
       `SQLITE_BUSY` retries at startup.
 - **Do not run this stack and telemetry at the same time.** Same Docker daemon,
   overlapping host ports (3306 at minimum, plus telemetry's fixed container
