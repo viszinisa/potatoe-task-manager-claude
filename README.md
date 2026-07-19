@@ -8,7 +8,7 @@ Cloning this repo alone is not enough — the main repo is the working tree it c
 
 - `CLAUDE.md` — project instructions; symlinked to the main repo root as `CLAUDE.md`
 - `skills/` — project skills, one dir per skill with a `SKILL.md`
-    - `basic-information-about-project/` — stack background, locked decisions, traps
+    - `project-info/` — stack background, locked decisions, traps
     - `lint-code/` — how to run php-inspect / misc-inspect
 - `bin/agent-art.sh` — console art signals (`tick 1|2|3`, `question`)
 - `settings.json` — shared settings: model, marketplaces, enabled plugins, Bash permission allowlist
@@ -52,7 +52,7 @@ Then run `claude` from the main repo root. First start prompts to trust the mark
 ## What the repo ships, and why
 
 - `CLAUDE.md` — always loaded into context. Carries the project's hard rules, including the Fable-orchestrates / sub-agents-execute model policy: the main conversation plans and delegates, work goes to sub-agents via the Agent tool with an explicit `model` override.
-- `skills/basic-information-about-project` — stack background and the place locked decisions and known traps get recorded. Currently a stub: the project is new and has neither yet.
+- `skills/project-info` — stack background and the place locked decisions and known traps get recorded. Currently a stub: the project is new and has neither yet.
 - `skills/lint-code` — exact `php-inspect` / `misc-inspect` invocations, one per file type, plus the non-idempotent-markdown prettier trap.
 - `bin/agent-art.sh` — generates the tick/question console art `CLAUDE.md` requires after task completion. Never hand-typed: the filler character is U+3000 (invisible), which silently drops from hand-typed rows.
 - `settings.json` — pins the model to `opus`, declares the three third-party marketplaces and the enabled plugin set, and allowlists the Bash commands agents run constantly (docker/compose) so they do not prompt.
