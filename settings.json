@@ -1,0 +1,49 @@
+{
+    "model": "opus",
+    "extraKnownMarketplaces": {
+        "superpowers-symfony": {
+            "source": {
+                "source": "github",
+                "repo": "MakFly/superpowers-symfony"
+            }
+        },
+        "mattpocock": {
+            "source": {
+                "source": "github",
+                "repo": "mattpocock/skills"
+            }
+        },
+        "caveman": {
+            "source": {
+                "source": "github",
+                "repo": "JuliusBrussee/caveman"
+            }
+        }
+    },
+    "enabledPlugins": {
+        "superpowers-symfony@superpowers-symfony": true,
+        "code-review@claude-plugins-official": true,
+        "skill-creator@claude-plugins-official": true,
+        "code-simplifier@claude-plugins-official": true,
+        "security-guidance@claude-plugins-official": true,
+        "frontend-design@claude-plugins-official": true,
+        "typescript-lsp@claude-plugins-official": true,
+        "claude-code-setup@claude-plugins-official": true,
+        "superpowers@claude-plugins-official": true,
+        "superpowers@superpowers-marketplace": false,
+        "mattpocock-skills@mattpocock": true,
+        "caveman@caveman": true
+    },
+    "permissions": {
+        "allow": [
+            "Bash(docker --version)",
+            "Bash(docker compose *)",
+            "Bash(chmod +x *)",
+            "Bash(python3 -m json.tool)",
+            "Bash(docker exec *)",
+            "Bash(docker pull *)",
+            "Bash(docker run *)",
+            "Bash(cd *)"
+        ]
+    }
+}
