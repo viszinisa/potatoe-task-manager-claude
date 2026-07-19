@@ -65,6 +65,29 @@ not say.
   (`api/migrations/Version20260719171800.php`), `INSERT IGNORE` against the
   unique `name` index, not a fixture/factory — re-running it or seeding
   around manually-added rows never duplicates.
+- **The class is `App\Entity\ManagedObject`, table `object`.** PHP forbids a
+  class literally named `Object`; `object` is still the table name per spec.
+  Objects are only ever created by import (phase 04) — no create endpoint
+  exists yet, only edit.
+- **Contact fields (`contactName`/`Email`/`Phone1`/`Phone2`) are first-class
+  columns on `ManagedObject`, never inside `params`.** They must survive
+  re-import (spec: import/sync updates `params`/GPS/type but must not clobber
+  contact data a human entered) — phase 04's importer must merge, not
+  overwrite, these columns.
+- **`StorageInterface` (`App\Storage`) splits transport from presigning.**
+  `FlysystemStorage::put/get/delete` run over the internal endpoint
+  (`seaweedfs:8333` directly); `temporaryUrl` presigns against a *separate*
+  S3 client bound to `s3.ptm.local`, because SigV4 signs the `Host` header
+  and the URL is consumed by the browser, not by `api`. The `nginx` service
+  carries a `s3.ptm.local` network alias (`compose.yml`) precisely so `api`
+  can resolve that same hostname in-network when generating presigned URLs —
+  removing the alias breaks presigning even though transport keeps working.
+  Phase 08's signed-URL downloads reuse this same port.
+- **Image upload allowlist is content-sniffed, not client-declared**
+  (`ImageController::ALLOWED_TYPES`: jpeg/png/webp), capped at 10 MiB
+  app-side; nginx's `/api/` vhost caps the request body at 12m
+  (`_docker/nginx/conf.d/ptm.conf`) so oversize uploads still reach the app
+  and get a 422, not a raw nginx 413.
 
 ## Traps
 
