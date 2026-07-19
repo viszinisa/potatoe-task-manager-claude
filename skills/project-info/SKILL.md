@@ -60,9 +60,9 @@ not say.
     - MariaDB `io_uring_queue_init() failed with EPERM` — WSL2 disables
       io_uring; MariaDB falls back and reports healthy.
     - Grafana `Failed to install plugin ... permission denied` (bundled plugins
-      on the data volume) and `Failed to read plugin provisioning files ...
-no such file or directory` (no `provisioning/plugins` dir), plus
-      `SQLITE_BUSY` retries at startup.
+      on the data volume) and
+      `Failed to read plugin provisioning files ... no such file or directory`
+      (no `provisioning/plugins` dir), plus `SQLITE_BUSY` retries at startup.
 - **Do not run this stack and telemetry at the same time.** Same Docker daemon,
   overlapping host ports (3306 at minimum, plus telemetry's fixed container
   names).
