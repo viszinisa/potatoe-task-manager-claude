@@ -72,8 +72,13 @@ not say.
 - **Contact fields (`contactName`/`Email`/`Phone1`/`Phone2`) are first-class
   columns on `ManagedObject`, never inside `params`.** They must survive
   re-import (spec: import/sync updates `params`/GPS/type but must not clobber
-  contact data a human entered) — phase 04's importer must merge, not
-  overwrite, these columns.
+  contact data a human entered) — the phase 04 importer's external_id upsert
+  merges, never overwrites, these columns. Locked invariant: never make the
+  import path write to them.
+- **`App\Service\CoordinateConverter`-style LKS-92→WGS-84 conversion is a
+  self-contained port of the laacz gist formulas — never add `proj4php` or
+  another projection library.** It's a handful of closed-form equations, not
+  worth a dependency.
 - **`StorageInterface` (`App\Storage`) splits transport from presigning.**
   `FlysystemStorage::put/get/delete` run over the internal endpoint
   (`seaweedfs:8333` directly); `temporaryUrl` presigns against a *separate*
@@ -114,16 +119,26 @@ not say.
   single `prometheus` job targeting `localhost:9090`; no application target
   exists. README's data-flow line implies otherwise and is stale — no app
   metrics endpoint has been wired.
-- **Benign log noise, do not chase:**
-    - MariaDB `io_uring_queue_init() failed with EPERM` — WSL2 disables
-      io_uring; MariaDB falls back and reports healthy.
-    - Grafana `Failed to install plugin ... permission denied` (bundled plugins
-      on the data volume) and
-      `Failed to read plugin provisioning files ... no such file or directory`
-      (no `provisioning/plugins` dir), plus `SQLITE_BUSY` retries at startup.
+- **Benign log noise, do not chase:** MariaDB `io_uring_queue_init() failed
+  with EPERM` (WSL2 disables io_uring, falls back healthy); Grafana
+  `Failed to install plugin ... permission denied` (bundled plugins on the
+  data volume), `Failed to read plugin provisioning files ...` (no
+  `provisioning/plugins` dir), and `SQLITE_BUSY` retries at startup.
 - **Do not run this stack and telemetry at the same time.** Same Docker daemon,
   overlapping host ports (3306 at minimum, plus telemetry's fixed container
   names).
+- **`messenger-worker`'s scheduler rebuilds its schedule only at container
+  boot** (hourly recycle) — creating or editing a `DataSource`'s import
+  schedule has no effect until the worker restarts; it does not poll the DB.
+- **`HttpFetchGuard` denies private/loopback IP ranges by default** (SSRF
+  protection on import fetches, http/https only, no redirects, 30s/20MB caps).
+  Dev `.env` sets `IMPORT_ALLOW_PRIVATE_NETWORKS=1` so imports can reach
+  sibling containers — never set it outside dev.
+- **The Doctrine messenger transport's `messenger_messages` table needs no
+  `schema_filter` entry.** `DoctrineTransport::configureSchema()` hooks into
+  the same schema-diff pass migrations use, so `doctrine:migrations:diff`
+  already treats it as expected — a manual filter would just duplicate what
+  the transport declares.
 - **`App\Service\TaskSeqAllocator::allocate()` must run before any other
   auto-increment insert in the same transaction whose ID is still needed via
   `Connection::lastInsertId()`** — its `UPDATE project SET task_seq =
