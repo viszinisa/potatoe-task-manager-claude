@@ -58,6 +58,13 @@ not say.
   migration, `api/migrations/Version20260719163431.php`) so later features
   can FK a stable user id. LDAP's `LdapUser` remains the actual security
   principal.
+- **`Project::$slug` is immutable** (no setter, set once in the constructor)
+  because it seeds task refs; renaming a project must never renumber or
+  re-key its existing tasks.
+- **`task_type` is seeded via an idempotent migration**
+  (`api/migrations/Version20260719171800.php`), `INSERT IGNORE` against the
+  unique `name` index, not a fixture/factory — re-running it or seeding
+  around manually-added rows never duplicates.
 
 ## Traps
 
@@ -94,3 +101,11 @@ not say.
 - **Do not run this stack and telemetry at the same time.** Same Docker daemon,
   overlapping host ports (3306 at minimum, plus telemetry's fixed container
   names).
+- **`App\Service\TaskSeqAllocator::allocate()` must run before any other
+  auto-increment insert in the same transaction whose ID is still needed via
+  `Connection::lastInsertId()`** — its `UPDATE project SET task_seq =
+  LAST_INSERT_ID(task_seq + 1) ...` overwrites the connection's session-local
+  `LAST_INSERT_ID()` value. It assumes a dedicated per-session DB connection;
+  a ProxySQL/MaxScale-style pooler breaks the mechanism. Bypasses the ORM by
+  design (`Project` has no `taskSeq` setter) — refresh the entity if the new
+  value is needed in-memory.
