@@ -85,6 +85,7 @@ coordinate work, stop and delegate it instead.
 ## Sub-agent definitions (`.claude/agents/`)
 
 - Create a project agent whenever a task shape recurs — the same model, tool scope and standing constraints being re-typed into successive spawn prompts. One file per agent: frontmatter (`name`, `description`, `tools`, `model`) plus the system prompt body. Creating, amending and retiring them is the orchestrator's standing authority; no need to ask first.
+- Creating an agent is reported, never silent. In the same turn the file is added, tell me: its `name`, what triggers it, which model it pins, and what recurrence justified giving it a file. Amendments and retirements get one line each on the same terms.
 - `description` is the only field matched on when selecting an agent. Write it as trigger conditions ("use when X"), not as a job title.
 - Agents cannot improve themselves. The definition is read at spawn, so a sub-agent editing its own file changes nothing about the run it is in, and sub-agents never commit. Folding a lesson back in is the orchestrator's job: when a run exposes a trap or a wasted step, amend the agent file before the next spawn.
 - Same discipline as skills: **hard cap 100 lines per agent file**, record only what the agent cannot re-derive from the code, edit in place. No changelogs, no dates, no "formerly X". Over the cap means the agent is doing too many jobs — split it.
