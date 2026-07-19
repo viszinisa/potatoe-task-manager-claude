@@ -13,7 +13,7 @@ Current facts, and nothing beyond them:
 - Services: `mariadb`, `api`, `nginx`, `frontend`, `prometheus`, `grafana`
   (always on); `api-test`, `frontend-test`, `playwright` (profile `test`);
   `php-inspect`, `misc-inspect` (profile `tools`).
-- The API has exactly two endpoints: `GET /ping` → `pong`, and
+- The API has exactly two endpoints: `GET /api/v1/ping` → `pong`, and
   `GET /api/v1/health`.
 - The frontend is a bare welcome page.
 
