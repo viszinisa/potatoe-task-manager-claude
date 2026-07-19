@@ -93,16 +93,26 @@ not say.
   app-side; nginx's `/api/` vhost caps the request body at 12m
   (`_docker/nginx/conf.d/ptm.conf`) so oversize uploads still reach the app
   and get a 422, not a raw nginx 413.
+- **`ObjectListQuery` (`api/src/Query/ObjectListQuery.php`) never
+  interpolates user input into SQL.** Filterable fields come from a fixed
+  allowlist map; `params.*` JSON keys are regex-validated
+  (`/^[A-Za-z0-9_.-]+$/`) before being placed in a `JSON_EXTRACT` path
+  string, and every value is bound as a DBAL parameter. Extending the field
+  set must keep both properties — pattern-validate the key, bind the value.
+- **The worklog response shape is owned by one place**, `WorklogController`'s
+  class docblock (`api/src/Controller/WorklogController.php`) — it commits
+  the phase-07 interval contract now so phase-05/06 code integrates against
+  it. Update the shape there when phase 07 ships the real model, not in a
+  second copy.
 
 ## Traps
 
 - **Renaming the compose project re-namespaces every volume.** Data looks lost;
   the old volumes still exist under the previous prefix (`docker volume ls`).
   Migrate or accept the reset deliberately — never assume corruption.
-- **slapd needs its nofile ulimit capped.** The container runtime's default
-  `RLIMIT_NOFILE` (~1e9) makes `slapd` size its connection table off it and
-  `calloc` ~56GB, aborting on boot. `compose.yml`'s `ldap` service pins
-  `ulimits.nofile` to 1024/1024 — do not remove it.
+- **slapd needs its nofile ulimit capped** — the default `RLIMIT_NOFILE`
+  (~1e9) makes it `calloc` ~56GB sizing its connection table and abort on
+  boot; `compose.yml` pins `ulimits.nofile` to 1024/1024 — do not remove it.
 - **The `Symfony\Component\Ldap\Ldap` service needs the literal `ldap` tag**
   in `services.yaml` — `CheckLdapCredentialsListener`'s service locator looks
   it up by that tag, not by autowiring the class.
@@ -112,21 +122,14 @@ not say.
   `LogoutListener` matches that path for any method, so skipping CSRF on
   "safe" methods there would let a cross-site GET force-logout.
 - **Functional/unit tests double LDAP with `App\Tests\Double\FakeLdap`**
-  (`api/tests/Double/FakeLdap.php`, password always literal `password`), not
-  a live bind to the `ldap` container — keeps `WebTestCase` auth tests
-  fast and DAMA-rollback-safe.
+  (password always literal `password`), not a live bind to `ldap` — keeps
+  `WebTestCase` auth tests fast and DAMA-rollback-safe.
 - **Prometheus scrapes only itself.** `_docker/prometheus/prometheus.yml` has a
-  single `prometheus` job targeting `localhost:9090`; no application target
-  exists. README's data-flow line implies otherwise and is stale — no app
-  metrics endpoint has been wired.
+  single `prometheus` job targeting `localhost:9090`; no app metrics endpoint
+  is wired yet.
 - **Benign log noise, do not chase:** MariaDB `io_uring_queue_init() failed
-  with EPERM` (WSL2 disables io_uring, falls back healthy); Grafana
-  `Failed to install plugin ... permission denied` (bundled plugins on the
-  data volume), `Failed to read plugin provisioning files ...` (no
-  `provisioning/plugins` dir), and `SQLITE_BUSY` retries at startup.
-- **Do not run this stack and telemetry at the same time.** Same Docker daemon,
-  overlapping host ports (3306 at minimum, plus telemetry's fixed container
-  names).
+  with EPERM` (WSL2 fallback), Grafana plugin-install/provisioning warnings,
+  and `SQLITE_BUSY` retries at startup.
 - **`messenger-worker`'s scheduler rebuilds its schedule only at container
   boot** (hourly recycle) — creating or editing a `DataSource`'s import
   schedule has no effect until the worker restarts; it does not poll the DB.
@@ -134,11 +137,9 @@ not say.
   protection on import fetches, http/https only, no redirects, 30s/20MB caps).
   Dev `.env` sets `IMPORT_ALLOW_PRIVATE_NETWORKS=1` so imports can reach
   sibling containers — never set it outside dev.
-- **The Doctrine messenger transport's `messenger_messages` table needs no
-  `schema_filter` entry.** `DoctrineTransport::configureSchema()` hooks into
-  the same schema-diff pass migrations use, so `doctrine:migrations:diff`
-  already treats it as expected — a manual filter would just duplicate what
-  the transport declares.
+- **`messenger_messages` needs no `schema_filter` entry** —
+  `DoctrineTransport::configureSchema()` already hooks into the same
+  schema-diff pass `doctrine:migrations:diff` uses.
 - **`App\Service\TaskSeqAllocator::allocate()` must run before any other
   auto-increment insert in the same transaction whose ID is still needed via
   `Connection::lastInsertId()`** — its `UPDATE project SET task_seq =
