@@ -1,6 +1,6 @@
 ---
 name: project-info
-description: Background, locked decisions and known traps for the Potatoe Task Manager Docker Compose stack (Symfony REST API behind nginx, MariaDB, React Router SPA, Prometheus, Grafana). Use when working on compose.yml, anything under _docker/, api/, the frontend/ SPA, or the README in this project.
+description: Background, locked decisions and known traps for the Potatoe Task Manager Docker Compose stack (Symfony REST API behind nginx, MariaDB, LDAP-backed session auth, React Router SPA, Prometheus, Grafana). Use when working on compose.yml, anything under _docker/, api/, the frontend/ SPA, or the README in this project.
 ---
 
 # Potatoe Task Manager
@@ -42,16 +42,44 @@ not say.
 - **seaweedfs S3 auth lives in `_docker/seaweedfs/s3.json`**, mounted
   read-only into the container; `s3.ptm.local` proxies it 1:1 (SigV4 needs
   `Host` passed through unchanged, see `s3.conf`).
+- **`ldap` is container-to-container only** (no host port); `api` reaches it
+  by service name, never through nginx. `ldap.ptm.local` stays a reserved,
+  unclaimed vhost — the dev directory (`slapd`) has no web UI to proxy.
+- **Auth is session + double-submit CSRF, not tokens.** `security.yaml`'s
+  `json_login_ldap` provider resolves users by `sAMAccountName` (not `cn`/DN);
+  role hierarchy `ROLE_TS`/`ROLE_DAS` < `ROLE_MODERATOR` < `ROLE_ADMIN` <
+  `ROLE_SUPER_ADMIN` comes from LDAP `memberOf` via `App\Security\RoleMapper`
+  (`ldap_group_roles` map in `services.yaml`), never stored per-user;
+  `effectiveRole` is the highest held, derived not persisted.
+  `CsrfProtectionSubscriber` validates `X-XSRF-TOKEN` against the session on
+  every mutation.
+- **`App\Entity\User` is a local mirror, not the security user.** Keyed by
+  `sAMAccountName`, provisioned/refreshed on each login (first real Doctrine
+  migration, `api/migrations/Version20260719163431.php`) so later features
+  can FK a stable user id. LDAP's `LdapUser` remains the actual security
+  principal.
 
 ## Traps
 
 - **Renaming the compose project re-namespaces every volume.** Data looks lost;
   the old volumes still exist under the previous prefix (`docker volume ls`).
   Migrate or accept the reset deliberately — never assume corruption.
-- **`api/migrations/` is empty** (only a `.gitignore`). The entrypoint's
-  `doctrine:migrations:migrate --allow-no-migration` therefore succeeds while
-  doing nothing, and `task_manager` contains only `doctrine_migration_versions`.
-  A missing-table error means no migration was ever written, not a broken run.
+- **slapd needs its nofile ulimit capped.** The container runtime's default
+  `RLIMIT_NOFILE` (~1e9) makes `slapd` size its connection table off it and
+  `calloc` ~56GB, aborting on boot. `compose.yml`'s `ldap` service pins
+  `ulimits.nofile` to 1024/1024 — do not remove it.
+- **The `Symfony\Component\Ldap\Ldap` service needs the literal `ldap` tag**
+  in `services.yaml` — `CheckLdapCredentialsListener`'s service locator looks
+  it up by that tag, not by autowiring the class.
+- **Logout is CSRF-checked even though it's not a state-changing verb by
+  convention.** `CsrfProtectionSubscriber::ALWAYS_PROTECTED_PATHS` forces the
+  check on `/api/v1/auth/logout` regardless of HTTP method — Symfony's
+  `LogoutListener` matches that path for any method, so skipping CSRF on
+  "safe" methods there would let a cross-site GET force-logout.
+- **Functional/unit tests double LDAP with `App\Tests\Double\FakeLdap`**
+  (`api/tests/Double/FakeLdap.php`, password always literal `password`), not
+  a live bind to the `ldap` container — keeps `WebTestCase` auth tests
+  fast and DAMA-rollback-safe.
 - **Prometheus scrapes only itself.** `_docker/prometheus/prometheus.yml` has a
   single `prometheus` job targeting `localhost:9090`; no application target
   exists. README's data-flow line implies otherwise and is stale — no app
