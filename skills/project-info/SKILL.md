@@ -12,41 +12,39 @@ not say.
 ## Locked decisions
 
 - **No `container_name:`, and `frontend` publishes no host port** — both collided
-  with the unrelated `/home/artis/work/telemetry` stack (`container_name:
-  mariadb/api/api-test/frontend`, `5173:5173`). Top-level `name: ptm` gives
-  `ptm-<service>-1` instead; nginx on `:80` reaches the SPA (service DNS to Vite),
-  safe because all inter-service addressing (nginx upstreams, DSNs, prometheus
-  targets) uses compose SERVICE names, which didn't change. Do not re-add either.
+  with the unrelated `telemetry` stack. Top-level `name: ptm` gives `ptm-<service>-1`
+  instead; nginx on `:80` reaches the SPA via service DNS, since all inter-service
+  addressing uses compose SERVICE names. Do not re-add either.
 - **Every nginx upstream uses the resolver-variable pattern** (`resolver 127.0.0.11
   valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` —
-  static targets make nginx refuse to start if the backend is down at boot; the
-  variable form defers DNS to request time so nginx boots regardless of backend
-  order, which is also why nginx carries no `depends_on`. Never "simplify" either
-  back.
-- **Host ports are nginx-only: 80 (all `*.ptm.local` HTTP vhosts) and 3306 (raw TCP
-  stream to mariadb).** No other service publishes a host port; DB clients and
-  browsers alike go through nginx.
-- **`dev1.ptm.local` … `dev5.ptm.local` are reserved, unclaimed vhost slots** for
-  ad-hoc one-off work — add a conf.d file when claiming one, don't reuse the fixed
-  service names (`grafana.ptm.local` etc.) for anything else.
+  static targets refuse to start if the backend is down at boot; the variable form
+  defers DNS to request time, which is also why nginx carries no `depends_on`. Never
+  "simplify" either back.
+- **`dev1.ptm.local` … `dev5.ptm.local` are reserved, unclaimed vhost slots** — add a
+  conf.d file when claiming one; never reuse a fixed service name for ad-hoc work.
 - **seaweedfs S3 auth lives in `_docker/seaweedfs/s3.json`**, mounted read-only into
   the container; `s3.ptm.local` proxies it 1:1 (SigV4 needs `Host` passed through
   unchanged, see `s3.conf`).
-- **`ldap` is container-to-container only** (no host port); `api` reaches it by
-  service name, never through nginx. `ldap.ptm.local` stays a reserved, unclaimed
-  vhost — the dev directory (`slapd`) has no web UI to proxy.
+- **`ldap` is container-to-container only** (no host port), reached by service name,
+  never through nginx; `ldap.ptm.local` stays reserved, unclaimed — `slapd` has no
+  web UI to proxy.
 - **Auth is session + double-submit CSRF, not tokens.** `json_login_ldap` resolves
   users by `sAMAccountName` (not `cn`/DN); role hierarchy `ROLE_TS`/`ROLE_DAS` <
   `MODERATOR` < `ADMIN` < `SUPER_ADMIN` comes from LDAP `memberOf` via `RoleMapper`,
   never stored per-user — `effectiveRole` is the highest held, derived not
   persisted. `CsrfProtectionSubscriber` checks `X-XSRF-TOKEN` against the session on
   every mutation.
+- **Phase 09 authorization is a full voter matrix, not coarse guards** —
+  `access_control` in `security.yaml` stays auth-only (authenticated vs anonymous),
+  never grows a role/permission line; every resource decision runs through a Voter.
+  Per-task caps (`TaskAssignmentRepository::hasRole`) never elevate system-role caps
+  (pinned by tests); image/object-tag mutations stay any-authenticated by documented
+  interpretation — spec-silent, product-owner ruling pending.
 - **`App\Entity\User` is a local mirror, not the security user.** Keyed by
-  `sAMAccountName`, provisioned/refreshed on each login so later features can FK a
-  stable user id. LDAP's `LdapUser` remains the actual security principal.
-- **`Project::$slug` is immutable** (no setter, set once in the constructor) because
-  it seeds task refs; renaming a project must never renumber or re-key its existing
-  tasks.
+  `sAMAccountName`, provisioned/refreshed on each login; LDAP's `LdapUser` remains
+  the actual security principal.
+- **`Project::$slug` is immutable** (no setter, set once in the constructor) — it
+  seeds task refs, so renaming a project must never renumber or re-key its tasks.
 - **`task_type` is seeded via an idempotent migration**, `INSERT IGNORE` against the
   unique `name` index, not a fixture/factory — re-running it or seeding around
   manually-added rows never duplicates.
@@ -61,16 +59,14 @@ not say.
   gist's LKS-92→WGS-84 formulas** — a handful of closed-form equations, never
   worth adding `proj4php` or another projection library.
 - **`StorageInterface` (`App\Storage`) splits transport from presigning.**
-  `FlysystemStorage` talks `seaweedfs:8333` directly; `temporaryUrl` presigns
-  against a *separate* client bound to `s3.ptm.local` (SigV4 signs `Host`, and the
-  browser — not `api` — consumes the URL). `nginx`'s `s3.ptm.local` network alias
-  exists solely so `api` can resolve that hostname in-network; removing it breaks
-  presigning even though transport keeps working.
+  `FlysystemStorage` talks `seaweedfs:8333` directly; `temporaryUrl` presigns against
+  a *separate* client bound to `s3.ptm.local` (SigV4 signs `Host`; the browser, not
+  `api`, consumes the URL). nginx's `s3.ptm.local` alias exists only so `api` can
+  resolve that hostname — removing it breaks presigning.
 - **Image upload allowlist is content-sniffed, not client-declared**
-  (`ImageController::ALLOWED_TYPES`: jpeg/png/webp), capped at 10 MiB app-side;
-  nginx's `/api/` vhost caps the request body at 12m
-  (`_docker/nginx/conf.d/ptm.conf`) so oversize uploads still reach the app and get
-  a 422, not a raw nginx 413.
+  (`ImageController::ALLOWED_TYPES`: jpeg/png/webp), capped at 10 MiB app-side; nginx
+  caps the request body at 12m (`_docker/nginx/conf.d/ptm.conf`) so oversize uploads
+  get a 422, not a raw nginx 413.
 - **`ObjectListQuery` (`api/src/Query/ObjectListQuery.php`) never interpolates user
   input into SQL.** Filterable fields come from a fixed allowlist map; `params.*`
   JSON keys are regex-validated before being placed in a `JSON_EXTRACT` path, and
@@ -94,8 +90,8 @@ not say.
   planned date vs. today (UTC): null → not_planned, future → planned,
   today-or-past-due → planned_today.
 - **Task assignment usernames validate against the local `User` mirror, not LDAP** —
-  an unknown username 422s ("no user-search endpoint yet", phase 09); the assignee
-  must already have logged in once (login-provisioned mirror).
+  assignee must have logged in once. Phase 09's `GET /users?forRole` (MODERATOR+,
+  sort-only) feeds the wizard picker that replaced the old free-text field.
 - **`TaskDocTemplate` has no update path, ever** — delete + re-upload only. Modeled
   on signed documents: a template must never change out from under a doc already
   generated from it. Never add a PUT/PATCH route for it.
@@ -119,8 +115,7 @@ not say.
   that tag, not by autowiring the class.
 - **Logout is CSRF-checked despite not being state-changing by convention** —
   `ALWAYS_PROTECTED_PATHS` forces the check regardless of HTTP method, since
-  `LogoutListener` matches any method (skipping "safe" ones would let a cross-site
-  GET force-logout).
+  `LogoutListener` matches any method (skipping "safe" ones would allow a cross-site GET force-logout).
 - **Functional/unit tests double LDAP with `App\Tests\Double\FakeLdap`** (password
   always literal `password`), not a live bind to `ldap` — keeps `WebTestCase` auth
   tests fast and DAMA-rollback-safe.
@@ -128,23 +123,28 @@ not say.
   single `prometheus` job targeting `localhost:9090`; no app metrics endpoint is
   wired yet.
 - **Benign log noise, do not chase:** MariaDB `io_uring_queue_init() failed with
-  EPERM` (WSL2 fallback), Grafana plugin-install/provisioning warnings, and
-  `SQLITE_BUSY` retries at startup.
+  EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup.
+- **Voter role checks must call `Security::isGranted`, never `in_array` on the
+  token's raw roles** — `isGranted` walks `role_hierarchy` (`ROLE_TS`/`ROLE_DAS` <
+  `MODERATOR` < `ADMIN` < `SUPER_ADMIN`); `in_array` silently breaks that for
+  anything above the literal role tested.
+- **`frontend-test`'s container mounts only `frontend/`, so the repo-root
+  `.prettierrc` is invisible to it** — its own prettier run won't match repo style.
+  Always lint/format via `misc-inspect` (mounts the whole repo); this has bitten
+  multiple agents.
 - **`messenger-worker`'s scheduler rebuilds its schedule only at container boot**
   (hourly recycle) — creating or editing a `DataSource`'s import schedule has no
   effect until the worker restarts; it does not poll the DB.
-- **`HttpFetchGuard` denies private/loopback IP ranges by default** (SSRF protection
-  on import fetches, http/https only, no redirects, 30s/20MB caps). Dev `.env` sets
-  `IMPORT_ALLOW_PRIVATE_NETWORKS=1` so imports can reach sibling containers — never
-  set it outside dev.
+- **`HttpFetchGuard` denies private/loopback IP ranges by default** (SSRF guard on
+  import fetches, http/https only, no redirects, 30s/20MB caps). Dev `.env` sets
+  `IMPORT_ALLOW_PRIVATE_NETWORKS=1` for sibling containers — never set it outside dev.
 - **`messenger_messages` needs no `schema_filter` entry** —
   `DoctrineTransport::configureSchema()` already hooks into the same schema-diff
   pass `doctrine:migrations:diff` uses.
 - **`App\Service\TaskSeqAllocator::allocate()` must run before any other
-  auto-increment insert in the same transaction whose ID is still needed via
-  `Connection::lastInsertId()`** — its `UPDATE project SET task_seq =
-  LAST_INSERT_ID(task_seq + 1) ...` overwrites the connection's session-local
-  `LAST_INSERT_ID()` value. It assumes a dedicated per-session DB connection; a
-  ProxySQL/MaxScale-style pooler breaks the mechanism. Bypasses the ORM by design
-  (`Project` has no `taskSeq` setter) — refresh the entity if the new value is
+  auto-increment insert in the same transaction whose ID still needs
+  `Connection::lastInsertId()`** — its `UPDATE ... LAST_INSERT_ID(task_seq + 1)`
+  overwrites the connection's session-local `LAST_INSERT_ID()` value. Assumes a
+  dedicated per-session DB connection; a ProxySQL/MaxScale-style pooler breaks it.
+  Bypasses the ORM (no `taskSeq` setter) — refresh the entity if the new value is
   needed in-memory.
