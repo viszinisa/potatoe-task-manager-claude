@@ -11,26 +11,19 @@ not say.
 
 ## Locked decisions
 
-- **No `container_name:` on any service, ever.** `container_name` is global to
-  the Docker daemon, and the unrelated stack at `/home/artis/work/telemetry`
-  sets `container_name: mariadb`, `api`, `api-test`, `frontend`. The top-level
-  `name: ptm` yields `ptm-<service>-1` instead. Re-adding `container_name`
-  reintroduces the collision.
-- **`frontend` publishes no host port.** Its 5173 also collided with telemetry
-  (which publishes `5173:5173`). nginx on `:80` is the supported way to reach
-  the SPA; nginx reaches the Vite dev server by service DNS. Do not re-add a
-  5173 host publish.
+- **No `container_name:`, and `frontend` publishes no host port** — both
+  collided with the unrelated `/home/artis/work/telemetry` stack
+  (`container_name: mariadb/api/api-test/frontend`, `5173:5173`). Top-level
+  `name: ptm` gives `ptm-<service>-1` instead; nginx on `:80` is the
+  supported way to reach the SPA (service DNS to Vite). Do not re-add either.
 - **All inter-service addressing uses compose SERVICE names** (nginx upstreams,
   DSNs, prometheus targets). That is what made dropping `container_name` safe —
   service names did not change. Keep it that way.
-- **Every nginx upstream — proxy, fastcgi, and the mariadb stream — uses the
-  resolver-variable pattern**: `resolver 127.0.0.11 valid=10s;` plus
-  `set $x_upstream ...; proxy_pass/fastcgi_pass $x_upstream;`. A static
-  `proxy_pass`/`fastcgi_pass` target makes nginx refuse to start if that
-  backend is down at boot; the variable form defers the DNS lookup to
-  request time, so nginx boots regardless of backend order and returns
-  502/refuses the connection until the backend is up. Do not "simplify" any
-  vhost or the stream block back to a static target.
+- **Every nginx upstream uses the resolver-variable pattern**
+  (`resolver 127.0.0.11 valid=10s;` + `set $x_upstream ...;`), not a static
+  `proxy_pass`/`fastcgi_pass` — static targets make nginx refuse to start
+  if the backend is down at boot; the variable form defers DNS to request
+  time so nginx boots regardless of backend order. Never "simplify" back.
 - **nginx has no `depends_on`.** The resolver-variable pattern is what makes
   that safe — nginx never needs a backend up at its own startup.
 - **Host ports are nginx-only: 80 (all `*.ptm.local` HTTP vhosts) and 3306
@@ -45,14 +38,12 @@ not say.
 - **`ldap` is container-to-container only** (no host port); `api` reaches it
   by service name, never through nginx. `ldap.ptm.local` stays a reserved,
   unclaimed vhost — the dev directory (`slapd`) has no web UI to proxy.
-- **Auth is session + double-submit CSRF, not tokens.** `security.yaml`'s
-  `json_login_ldap` provider resolves users by `sAMAccountName` (not `cn`/DN);
-  role hierarchy `ROLE_TS`/`ROLE_DAS` < `ROLE_MODERATOR` < `ROLE_ADMIN` <
-  `ROLE_SUPER_ADMIN` comes from LDAP `memberOf` via `App\Security\RoleMapper`
-  (`ldap_group_roles` map in `services.yaml`), never stored per-user;
-  `effectiveRole` is the highest held, derived not persisted.
-  `CsrfProtectionSubscriber` validates `X-XSRF-TOKEN` against the session on
-  every mutation.
+- **Auth is session + double-submit CSRF, not tokens.** `json_login_ldap`
+  resolves users by `sAMAccountName` (not `cn`/DN); role hierarchy
+  `ROLE_TS`/`ROLE_DAS` < `MODERATOR` < `ADMIN` < `SUPER_ADMIN` comes from
+  LDAP `memberOf` via `RoleMapper`, never stored per-user — `effectiveRole`
+  is the highest held, derived not persisted. `CsrfProtectionSubscriber`
+  checks `X-XSRF-TOKEN` against the session on every mutation.
 - **`App\Entity\User` is a local mirror, not the security user.** Keyed by
   `sAMAccountName`, provisioned/refreshed on each login (first real Doctrine
   migration, `api/migrations/Version20260719163431.php`) so later features
@@ -71,23 +62,18 @@ not say.
   exists yet, only edit.
 - **Contact fields (`contactName`/`Email`/`Phone1`/`Phone2`) are first-class
   columns on `ManagedObject`, never inside `params`.** They must survive
-  re-import (spec: import/sync updates `params`/GPS/type but must not clobber
-  contact data a human entered) — the phase 04 importer's external_id upsert
-  merges, never overwrites, these columns. Locked invariant: never make the
-  import path write to them.
+  re-import — the phase 04 importer's external_id upsert merges, never
+  overwrites, these columns. Never make the import path write to them.
 - **`App\Service\CoordinateConverter`-style LKS-92→WGS-84 conversion is a
   self-contained port of the laacz gist formulas — never add `proj4php` or
   another projection library.** It's a handful of closed-form equations, not
   worth a dependency.
 - **`StorageInterface` (`App\Storage`) splits transport from presigning.**
-  `FlysystemStorage::put/get/delete` run over the internal endpoint
-  (`seaweedfs:8333` directly); `temporaryUrl` presigns against a *separate*
-  S3 client bound to `s3.ptm.local`, because SigV4 signs the `Host` header
-  and the URL is consumed by the browser, not by `api`. The `nginx` service
-  carries a `s3.ptm.local` network alias (`compose.yml`) precisely so `api`
-  can resolve that same hostname in-network when generating presigned URLs —
-  removing the alias breaks presigning even though transport keeps working.
-  Phase 08's signed-URL downloads reuse this same port.
+  `FlysystemStorage` talks `seaweedfs:8333` directly; `temporaryUrl` presigns
+  against a *separate* client bound to `s3.ptm.local` (SigV4 signs `Host`,
+  and the browser — not `api` — consumes the URL). `nginx`'s `s3.ptm.local`
+  network alias exists solely so `api` can resolve that hostname in-network;
+  removing it breaks presigning even though transport keeps working.
 - **Image upload allowlist is content-sniffed, not client-declared**
   (`ImageController::ALLOWED_TYPES`: jpeg/png/webp), capped at 10 MiB
   app-side; nginx's `/api/` vhost caps the request body at 12m
@@ -95,15 +81,29 @@ not say.
   and get a 422, not a raw nginx 413.
 - **`ObjectListQuery` (`api/src/Query/ObjectListQuery.php`) never
   interpolates user input into SQL.** Filterable fields come from a fixed
-  allowlist map; `params.*` JSON keys are regex-validated
-  (`/^[A-Za-z0-9_.-]+$/`) before being placed in a `JSON_EXTRACT` path
-  string, and every value is bound as a DBAL parameter. Extending the field
-  set must keep both properties — pattern-validate the key, bind the value.
-- **The worklog response shape is owned by one place**, `WorklogController`'s
-  class docblock (`api/src/Controller/WorklogController.php`) — it commits
-  the phase-07 interval contract now so phase-05/06 code integrates against
-  it. Update the shape there when phase 07 ships the real model, not in a
-  second copy.
+  allowlist map; `params.*` JSON keys are regex-validated before being
+  placed in a `JSON_EXTRACT` path, and every value is bound as a DBAL
+  parameter. Extending the field set must keep both — pattern-validate the
+  key, bind the value.
+- **The worklog response shape is owned by one place**,
+  `WorklogController`'s class docblock — it commits the phase-07 interval
+  contract now so phase-05/06 code integrates against it. Update it there
+  when phase 07 ships the real model, not in a second copy.
+- **Tasks are immutable by design** — `Task`/`TaskAssignment`/`TaskObject`
+  fields are `readonly`, no PATCH/PUT/DELETE route exists or should
+  (405 if attempted). Modeled on signed work orders: correcting a mistake
+  means cancel-and-recreate, never editing history.
+- **`TaskTransitioner` is the sole caller of `Task::markState`** — the
+  entity has no setter of its own. Its real concurrency check is a raw
+  conditional UPDATE, `... WHERE id = :id AND state = :from`; `affected
+  === 0` means a concurrent transition already won (409, not a retry).
+  Phase 07's per-object `TaskObject` states should copy this pattern.
+- **`ManagedObjectRepository::finishedObjectIdsInTask()` is a deliberate
+  no-op seam** (`task_object` has no state column yet) returning `[]` —
+  phase 07 lights it up; it is not dead code to clean up.
+- **Task assignment usernames validate against the local `User` mirror,
+  not LDAP** — an unknown username 422s ("no user-search endpoint yet",
+  phase 09); the assignee must already have logged in once (login-provisioned mirror).
 
 ## Traps
 
@@ -116,11 +116,10 @@ not say.
 - **The `Symfony\Component\Ldap\Ldap` service needs the literal `ldap` tag**
   in `services.yaml` — `CheckLdapCredentialsListener`'s service locator looks
   it up by that tag, not by autowiring the class.
-- **Logout is CSRF-checked even though it's not a state-changing verb by
-  convention.** `CsrfProtectionSubscriber::ALWAYS_PROTECTED_PATHS` forces the
-  check on `/api/v1/auth/logout` regardless of HTTP method — Symfony's
-  `LogoutListener` matches that path for any method, so skipping CSRF on
-  "safe" methods there would let a cross-site GET force-logout.
+- **Logout is CSRF-checked despite not being state-changing by convention**
+  — `ALWAYS_PROTECTED_PATHS` forces the check regardless of HTTP method,
+  since `LogoutListener` matches any method (skipping "safe" ones would
+  let a cross-site GET force-logout).
 - **Functional/unit tests double LDAP with `App\Tests\Double\FakeLdap`**
   (password always literal `password`), not a live bind to `ldap` — keeps
   `WebTestCase` auth tests fast and DAMA-rollback-safe.
