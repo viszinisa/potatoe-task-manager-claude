@@ -81,3 +81,8 @@ coordinate work, stop and delegate it instead.
 
 - The general rules for creating, reporting, sizing and retiring agents live in `~/.claude/CLAUDE.md`. Only this project's specifics are recorded here.
 - Agent files belong to the nested `.claude` repo, so they are invisible to `git status` in the outer repo and must be committed and pushed there.
+- **`smoke-runner`** runs at every section boundary: brings the stack up, exercises the section's primary endpoint **through nginx**, tears down. It is what discharges the "verify compose/`_docker/` changes by actually running them" rule in Conversation settings, which until now had no enforcer — a section that touched the stack is not done until `smoke-runner` has passed.
+
+## Plan execution
+
+- The plan → sub-plan → section → task gate ladder, the deferred ledger, and merge gating are defined by the generic `plan-pipeline` skill (`~/.claude/skills/plan-pipeline/SKILL.md`). It is the authority; do not restate or fork its contract here.

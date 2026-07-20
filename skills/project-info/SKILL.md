@@ -119,9 +119,7 @@ valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` 
 - **Functional/unit tests double LDAP with `App\Tests\Double\FakeLdap`** (password
   always literal `password`), not a live bind to `ldap` — keeps `WebTestCase` auth
   tests fast and DAMA-rollback-safe.
-- **Prometheus scrapes only itself.** `_docker/prometheus/prometheus.yml` has a
-  single `prometheus` job targeting `localhost:9090`; no app metrics endpoint is
-  wired yet.
+- **Any insert against a unique index must catch the flush-time `UniqueConstraintViolationException` and map it to 422/409** — a read-then-check leaves a race window, and an uncaught violation both 500s and closes the EntityManager (every later flush in the request dies too). A pre-check is still fine for the friendly message, but never as the only guard. Copy the pattern from `Task`/`Tag`/`Project`/`TaskType`/`ObjectTag`/`DataSource`/`TaskDocTemplate` controllers. This is the insert-side counterpart of the transitioners' conditional-UPDATE mutex above. **Live bug, recorded not fixed:** `api/src/Security/UserProvisioner.php` read-then-inserts against unique `users.sam_account_name`, so two concurrent first logins for one identity 500 the login endpoint.
 - **Benign log noise, do not chase:** MariaDB `io_uring_queue_init() failed with
 EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup.
 - **Voter role checks must call `Security::isGranted`, never `in_array` on the token's raw roles** — `isGranted` walks `role_hierarchy` (`ROLE_TS`/`ROLE_DAS` < `MODERATOR` < `ADMIN` < `SUPER_ADMIN`); `in_array` silently breaks that for anything above the literal role tested.
