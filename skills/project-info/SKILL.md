@@ -16,7 +16,7 @@ not say.
   instead; nginx on `:80` reaches the SPA via service DNS, since all inter-service
   addressing uses compose SERVICE names. Do not re-add either.
 - **Every nginx upstream uses the resolver-variable pattern** (`resolver 127.0.0.11
-  valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` —
+valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` —
   static targets refuse to start if the backend is down at boot; the variable form
   defers DNS to request time, which is also why nginx carries no `depends_on`. Never
   "simplify" either back.
@@ -60,7 +60,7 @@ not say.
   worth adding `proj4php` or another projection library.
 - **`StorageInterface` (`App\Storage`) splits transport from presigning.**
   `FlysystemStorage` talks `seaweedfs:8333` directly; `temporaryUrl` presigns against
-  a *separate* client bound to `s3.ptm.local` (SigV4 signs `Host`; the browser, not
+  a _separate_ client bound to `s3.ptm.local` (SigV4 signs `Host`; the browser, not
   `api`, consumes the URL). nginx's `s3.ptm.local` alias exists only so `api` can
   resolve that hostname — removing it breaks presigning.
 - **Image upload allowlist is content-sniffed, not client-declared**
@@ -123,15 +123,9 @@ not say.
   single `prometheus` job targeting `localhost:9090`; no app metrics endpoint is
   wired yet.
 - **Benign log noise, do not chase:** MariaDB `io_uring_queue_init() failed with
-  EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup.
-- **Voter role checks must call `Security::isGranted`, never `in_array` on the
-  token's raw roles** — `isGranted` walks `role_hierarchy` (`ROLE_TS`/`ROLE_DAS` <
-  `MODERATOR` < `ADMIN` < `SUPER_ADMIN`); `in_array` silently breaks that for
-  anything above the literal role tested.
-- **`frontend-test`'s container mounts only `frontend/`, so the repo-root
-  `.prettierrc` is invisible to it** — its own prettier run won't match repo style.
-  Always lint/format via `misc-inspect` (mounts the whole repo); this has bitten
-  multiple agents.
+EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup.
+- **Voter role checks must call `Security::isGranted`, never `in_array` on the token's raw roles** — `isGranted` walks `role_hierarchy` (`ROLE_TS`/`ROLE_DAS` < `MODERATOR` < `ADMIN` < `SUPER_ADMIN`); `in_array` silently breaks that for anything above the literal role tested.
+- **`frontend-test`'s container mounts only `frontend/`, so the repo-root `.prettierrc` is invisible to it** — its own prettier run won't match repo style. Always lint/format via `misc-inspect` (mounts the whole repo); this has bitten multiple agents.
 - **`messenger-worker`'s scheduler rebuilds its schedule only at container boot**
   (hourly recycle) — creating or editing a `DataSource`'s import schedule has no
   effect until the worker restarts; it does not poll the DB.
@@ -148,3 +142,6 @@ not say.
   dedicated per-session DB connection; a ProxySQL/MaxScale-style pooler breaks it.
   Bypasses the ORM (no `taskSeq` setter) — refresh the entity if the new value is
   needed in-memory.
+- **E2E per-worker identities are `parallelIndex`-keyed, not test-keyed** — `frontend/e2e/helpers/users.ts::allocateUser` maps `role + parallelIndex` to seeded logins (`admin${idx+1}` etc.); `POOL_SIZE` (10) must stay ≤ compose's `LDAP_USERS_PER_ROLE` or allocation throws — bump both together, never just one.
+- **`compose.ci.yml` is a CI-only override, never loaded locally** — layered in only via `COMPOSE_FILE` in `.gitlab-ci.yml`; drops nginx's host port publish so parallel CI jobs on one host never collide on ports 80/3306. Its `!reset []` merge key needs Compose ≥2.24 — do not backport it into local `compose.yml`.
+- **E2E binary fixtures (`frontend/e2e/fixtures/{objects.xlsx,template.docx}`) have no regen script** — generated one-shot; their expected structure (columns/mapping, template placeholder tokens) is documented in `helpers/api.ts`, not reproducible from a command.
