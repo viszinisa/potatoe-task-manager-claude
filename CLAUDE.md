@@ -14,7 +14,7 @@
     - Never `git add -A`, `git add .`, or `git commit -a` while any sub-agent is running — stage explicit paths only. Blanket staging is what turns a parallel run into a corrupted commit.
     - Group by coherent change, not by file count. Two fixes that only pass because they cancel each other out belong in one commit; splitting them yields a commit that hides a real defect.
     - For genuinely independent parallel work that will not interleave in the same files, prefer giving each sub-agent its own worktree (`isolation: "worktree"`) over serialising commits.
-    - **Finishing work means committing AND pushing BOTH repos** (see "Two repos" below), not just the outer one. Check `git status` in `/home/artis/work/potatoe-task-manager` and in `/home/artis/work/potatoe-task-manager/.claude` before declaring done. The outer repo has no upstream tracking, so its first push is `git push -u origin main`; `.claude` already tracks `origin/main` and takes a plain `git push`.
+    - **Finishing work means committing AND pushing BOTH repos** (see "Two repos" below), not just the outer one. Check `git status` in `/home/artis/work/potatoe-task-manager` and in `/home/artis/work/potatoe-task-manager/.claude` before declaring done. Both repos track `origin/main` and take a plain `git push`.
 
 ## Two repos
 
