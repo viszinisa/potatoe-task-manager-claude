@@ -55,7 +55,7 @@ valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` 
   on `ManagedObject`, never inside `params`.** They must survive re-import — the
   phase 04 importer's external_id upsert merges, never overwrites, these columns.
   Never make the import path write to them.
-- **`App\Service\CoordinateConverter` is a self-contained port of the laacz
+- **`api/src/Import/Lks92ToWgs84.php` is a self-contained port of the laacz
   gist's LKS-92→WGS-84 formulas** — a handful of closed-form equations, never
   worth adding `proj4php` or another projection library.
 - **`StorageInterface` (`App\Storage`) splits transport from presigning.**
@@ -145,3 +145,5 @@ EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup.
 - **E2E per-worker identities are `parallelIndex`-keyed, not test-keyed** — `frontend/e2e/helpers/users.ts::allocateUser` maps `role + parallelIndex` to seeded logins (`admin${idx+1}` etc.); `POOL_SIZE` (10) must stay ≤ compose's `LDAP_USERS_PER_ROLE` or allocation throws — bump both together, never just one.
 - **`compose.ci.yml` is a CI-only override, never loaded locally** — layered in only via `COMPOSE_FILE` in `.gitlab-ci.yml`; drops nginx's host port publish so parallel CI jobs on one host never collide on ports 80/3306. Its `!reset []` merge key needs Compose ≥2.24 — do not backport it into local `compose.yml`.
 - **E2E binary fixtures (`frontend/e2e/fixtures/{objects.xlsx,template.docx}`) have no regen script** — generated one-shot; their expected structure (columns/mapping, template placeholder tokens) is documented in `helpers/api.ts`, not reproducible from a command.
+- **`_docker/ldap/bootstrap/generate-data.sh`'s `NAMES` table must stay in lockstep with `SeedDemoCommand::USERS`** — `LoginSuccessSubscriber` refreshes the local `User` mirror from LDAP `displayName` on every login, so a drifted name in either table gets silently overwritten by whichever one the user next logs in against. Nothing enforces the match automatically.
+- **The e2e suite leaves undeletable projects behind** (`objlist-w4-…`, `wizard-w1-…`, … — no project delete route exists) that crowd out demo projects in list views; `app:seed:demo --fresh` only purges its own fixed demo slugs, never these. Capture `_docs/screenshots/` shots right after seeding and before running the e2e suite, not after.
