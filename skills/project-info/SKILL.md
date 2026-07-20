@@ -85,22 +85,23 @@ not say.
   placed in a `JSON_EXTRACT` path, and every value is bound as a DBAL
   parameter. Extending the field set must keep both — pattern-validate the
   key, bind the value.
-- **The worklog response shape is owned by one place**,
-  `WorklogController`'s class docblock — it commits the phase-07 interval
-  contract now so phase-05/06 code integrates against it. Update it there
-  when phase 07 ships the real model, not in a second copy.
 - **Tasks are immutable by design** — `Task`/`TaskAssignment`/`TaskObject`
   fields are `readonly`, no PATCH/PUT/DELETE route exists or should
   (405 if attempted). Modeled on signed work orders: correcting a mistake
   means cancel-and-recreate, never editing history.
-- **`TaskTransitioner` is the sole caller of `Task::markState`** — the
-  entity has no setter of its own. Its real concurrency check is a raw
-  conditional UPDATE, `... WHERE id = :id AND state = :from`; `affected
-  === 0` means a concurrent transition already won (409, not a retry).
-  Phase 07's per-object `TaskObject` states should copy this pattern.
-- **`ManagedObjectRepository::finishedObjectIdsInTask()` is a deliberate
-  no-op seam** (`task_object` has no state column yet) returning `[]` —
-  phase 07 lights it up; it is not dead code to clean up.
+- **`TaskTransitioner` is the sole caller of `Task::markState`; `ObjectTransitioner`
+  is the sole mutator of `task_object.state`** — same conditional-UPDATE mutex
+  convention (`affected === 0` => 409, not a retry); the latter also opens/closes
+  the matching `Worklog` row in the same DB transaction.
+- **`Worklog.open_key` is a virtual generated column, not a partial index** —
+  MariaDB has no `WHERE`-clause partial index support, so the single-open-row
+  invariant is a plain unique index over a column computed as `task_id-object_id`
+  while open, `NULL` once finished (NULLs distinct in MariaDB). Never reach
+  for a partial index here.
+- **`GET /worker/objects` tabs derive from state + `plannedInspectionAt`, not
+  a stored column** — finished/cancelled → completed, active/paused → active,
+  else by planned date vs. today (UTC): null → not_planned, future → planned,
+  today-or-past-due → planned_today.
 - **Task assignment usernames validate against the local `User` mirror,
   not LDAP** — an unknown username 422s ("no user-search endpoint yet",
   phase 09); the assignee must already have logged in once (login-provisioned mirror).
