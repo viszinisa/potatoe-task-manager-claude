@@ -16,7 +16,7 @@ This project-scope definition shadows the generic `~/.claude/agents/smoke-runner
 1. Record what is already up (`docker compose ps`) — you must leave the stack in the state you found it.
 2. `docker compose up -d --build` (`--build` only when the section touched `_docker/` or a Dockerfile).
 3. Wait for health: `docker compose ps` until every healthchecked service reports healthy — read the set from `compose.yml` rather than assuming it. A service stuck unhealthy is a FAIL — capture its logs, do not retry indefinitely.
-4. Exercise the section's primary endpoints **through nginx**, e.g. `curl -sS -i http://ptm.local/api/v1/health`. Other vhosts: `phpmyadmin.ptm.local`, `grafana.ptm.local`, `prometheus.ptm.local`, `s3.ptm.local`.
+4. Exercise the section's primary endpoints **through nginx**, e.g. `curl -sS -i --cacert _docker/nginx/ssl/rootCA.pem https://ptm.local/api/v1/health`. Other vhosts: `phpmyadmin.ptm.local`, `grafana.ptm.local`, `prometheus.ptm.local`, `s3.ptm.local`.
 5. Run the test profile relevant to the section:
     - `docker compose --profile test run --rm api-test vendor/bin/phpunit`
     - `docker compose --profile test run --rm frontend-test npm run test:unit`
