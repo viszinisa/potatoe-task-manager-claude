@@ -126,3 +126,7 @@ exist` for its first ~70s until server migrations finish.
   there is no upstream hop to preserve and appending lets a client spoof the
   header. `authentik.ptm.local` follows this; copy it, not an append pattern
   from elsewhere.
+- **`composer recipes:update symfony/scheduler` recreates `api/src/Schedule.php`
+  from the flex lock**, duplicating `#[AsSchedule('default')]` alongside
+  `DefaultSchedule.php` — the container then hard-fails compilation. Delete the
+  regenerated file again; never merge it.
