@@ -103,9 +103,16 @@ source path does not exist`; without it Docker creates a root-owned _directory_ 
 - **Benign log noise, do not chase:** MariaDB `io_uring_queue_init() failed with
 EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup,
   and Authentik worker logging `relation "authentik_tasks_workerstatus" does not
-  exist` for its first ~70s until server migrations finish.
+exist` for its first ~70s until server migrations finish.
 - **Authentik's `/data/media` is a symlink to `/media`** — mounting the
   `authentik_media` volume at `/data` persists nothing; it must mount at `/media`.
+- **A failing Authentik blueprint is invisible**: containers stay healthy, the worker logs
+  `apply_blueprint … Task finished, exc: null`, and only
+  `authentik_blueprints_blueprintinstance.status` turns `error`. It also leaves the previously
+  applied objects intact, so a broken _edit_ still serves the old config. Assert
+  `/application/o/ptm/.well-known/openid-configuration`, never health. Blueprint passwords apply
+  on create only. Files live in `_docker/authentik/blueprints/` → `/blueprints/custom` (the image
+  owns `system/`, `default/`, `example/`).
 - **Every new vhost must overwrite `X-Forwarded-For` with `$remote_addr`, never
   append via `$proxy_add_x_forwarded_for`** — nginx is the outermost proxy, so
   there is no upstream hop to preserve and appending lets a client spoof the
