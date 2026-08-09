@@ -12,11 +12,11 @@ not say.
 ## Current state
 
 - **Plan `v1-product` is under execution on the `plan/v1-product*` branches**,
-  identity (Authentik) first. Landed so far: the `users`/`user_group`/`api_token`
-  schema, OIDC login + API-token layer under `api/src/Security/`, the
-  `/api/v1/auth/{oidc,oidc/callback,me,logout}` endpoints, and the messenger/
-  scheduler skeleton. Everything else is unbuilt — `frontend/app` is a single
-  welcome route, no domain code, storage layer or admin surface to reference.
+  identity (Authentik) first. Landed: the `users`/`user_group`/`api_token` schema,
+  OIDC login + API-token layer under `api/src/Security/`, the
+  `/api/v1/auth/{oidc,oidc/callback,me,logout}` endpoints, the messenger/scheduler
+  skeleton. Everything else is unbuilt — `frontend/app` is a single welcome route,
+  no domain code, storage layer or admin surface to reference.
 - **`_docs/spec.md` is the product spec** driving `v1-product`; check the plan
   file for what section is in flight before assuming a spec area is built.
 - A full implementation of the spec was built, rejected and deleted — including stack
@@ -71,15 +71,18 @@ valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` 
 - **`GET /api/v1/auth/me` roles are AS-HELD, not hierarchy-expanded** — floored
   to `ROLE_EMPLOYEE` only; a `ROLE_MODERATOR` check must enumerate every
   granting role, never a bare `.includes()`.
+- **`App\Security\UserLookup::assignable()` is the only sanctioned candidate source
+  for assignment/grant/staffing pickers** — never query `users` from a picker: it reads
+  mirror rows only (that IS "login required before assignment") and caps results at
+  `MAX_RESULTS` whatever the caller asks for.
 - **`App\Scheduler\DefaultSchedule` is the only `#[AsSchedule]` class** — attach every
   `RecurringMessage` to it. A duplicate `'default'` is a hard container-compile error, but a
   _second name_ compiles silently and never runs: `api-worker` consumes only
   `async scheduler_default`. Messenger transports run `auto_setup=false`, so any new transport
   needs its own migration, never worker-issued DDL.
-- **seaweedfs S3 auth lives in `_docker/seaweedfs/s3.json`**, mounted read-only into
-  the container; `s3.ptm.local` proxies it 1:1 (SigV4 needs `Host` passed through
-  unchanged, see `s3.conf`). Any future presigning must be signed against that
-  hostname, since the browser — not `api` — consumes the URL.
+- **seaweedfs S3 auth lives in `_docker/seaweedfs/s3.json`** (read-only mount);
+  `s3.ptm.local` proxies it 1:1, SigV4 needing `Host` unchanged (see `s3.conf`). Future
+  presigning must sign against that hostname — the browser, not `api`, consumes the URL.
 
 ## Traps
 
@@ -106,9 +109,6 @@ source path does not exist`; without it Docker creates a root-owned _directory_ 
   `NODE_EXTRA_CA_CERTS`; against the default fixture the assertion is vacuous.
 - **prettier cannot parse `.conf`/`.cnf`/`.env`** — those stay unlinted; shellcheck
   (`tools` profile) covers `.sh`, `nginx -t` is the de-facto nginx check.
-- **Renaming the compose project re-namespaces every volume.** Data looks lost; the
-  old volumes still exist under the previous prefix (`docker volume ls`). Migrate or
-  accept the reset deliberately — never assume corruption.
 - **Never mount tmpfs over a subpath of a bind mount** (e.g.
   `/var/www/api/.phpunit.cache`) — Docker creates the missing directory
   **root-owned on the host**, which then breaks the default uid-1000 workflow. Cost
