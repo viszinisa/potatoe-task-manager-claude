@@ -61,7 +61,7 @@ valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` 
 - **`dev1`–`dev5.ptm.local` are reserved, unclaimed vhost slots** — add a conf.d file
   when claiming one; never reuse a fixed service name for ad-hoc work.
 - **API auth is an opaque token, not a session (spec amendment A-9).** Two firewalls in
-  `security.yaml`, order load-bearing: `auth` (`^/api/v1/auth/oidc(/|$)`, `stateless: false`,
+  `security.yaml`, order load-bearing: `auth` (`^/api/v1/auth/oidc(/|\z)`, `stateless: false`,
   carries the drenso `oidc:` listener; its session only ferries `state`/`nonce`) is declared
   **before** `api` (`^/api/v1`, `stateless: true`, `access_token` authenticator). The
   credential is the httpOnly `API_TOKEN` cookie, then `Authorization: Bearer`; only its
