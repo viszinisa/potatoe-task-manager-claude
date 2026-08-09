@@ -27,8 +27,9 @@ not say.
 - **No `container_name:`, and `frontend` publishes no host port** — both collided
   with the unrelated `telemetry` stack. Top-level `name: ptm` gives `ptm-<service>-1`.
   Do not re-add either.
-- **Only nginx's own upstreams use compose SERVICE names** (`api`, `frontend`). Every
-  other inter-service hop dials the public `*.ptm.local` name over TLS — `extra_hosts`
+- **nginx's own upstream hops — every conf.d upstream and the `:3306` stream — use
+  compose service DNS.** Every other inter-service hop dials the public `*.ptm.local`
+  name over TLS — `extra_hosts`
   → `host-gateway` (the `x-ptm-hosts` anchor) sends it out to the host and back in
   through the edge, deliberately modelling services that will not share a cluster.
   `api`/phpMyAdmin/Grafana reach the DB at `mysql.ptm.local:3306`, prometheus
