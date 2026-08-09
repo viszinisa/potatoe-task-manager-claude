@@ -15,8 +15,8 @@ not say.
   identity (Authentik) first. Landed: the `users`/`user_group`/`api_token` schema,
   OIDC login + API-token layer under `api/src/Security/`, the
   `/api/v1/auth/{oidc,oidc/callback,me,logout}` endpoints, the messenger/scheduler
-  skeleton. Everything else is unbuilt — `frontend/app` is a single welcome route,
-  no domain code, storage layer or admin surface to reference.
+  skeleton, plus the SPA auth layer (`~/lib/api`, `<AuthProvider>`, `<RequireAuth>`,
+  the single `AppShell`; `/login` is the only public route). Everything else is unbuilt — no domain code, storage layer or admin surface to reference.
 - **`_docs/spec.md` is the product spec** driving `v1-product`; check the plan
   file for what section is in flight before assuming a spec area is built.
 - A full implementation of the spec was built, rejected and deleted — including stack
