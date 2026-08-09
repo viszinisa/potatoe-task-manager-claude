@@ -17,10 +17,12 @@ not say.
   any of it, and do not write code that references it.
 - **`_docs/spec.md` is the product spec and is entirely unimplemented.** There are no
   implementation plans on disk — new ones are still to be written.
-- A full implementation of the spec was built, rejected and deleted; no branch, remote
-  copy or git history survives. What was worth keeping is distilled into
-  `_docs/security-model.md` (auth/authorization reference design); everything else is
-  gone deliberately, so do not go looking for it.
+- A full implementation of the spec was built, rejected and deleted — including stack
+  services (an LDAP container existed once). **Git history itself was purged by design**:
+  the current "initial commit" is a reset point, so `git log`/`git log -S` proving
+  something "never existed" only proves it post-reset — never state it stronger. What was
+  worth keeping is distilled into `_docs/security-model.md` (auth/authorization reference
+  design); everything else is gone deliberately, so do not go looking for it.
 
 ## Locked decisions
 
