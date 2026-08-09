@@ -13,10 +13,10 @@ not say.
 
 - **Plan `v1-product` is under execution on branch `plan/v1-product`**, identity
   (Authentik) landing first. Outside of what has actually landed on that branch,
-  `api/src` still holds `PingController`/`HealthController` only and
-  `frontend/app` a single welcome route — do not assume entities, migrations,
-  storage layer or other domain code exist, and do not write code that
-  references it.
+  `api/src` holds `PingController`/`HealthController` plus `Scheduler\DefaultSchedule`,
+  the only migration creates `messenger_messages`, and `frontend/app` is a single
+  welcome route — do not assume entities, storage layer or other domain code
+  exist, and do not write code that references them.
 - **`_docs/spec.md` is the product spec** driving `v1-product`; check the plan
   file for what section is in flight before assuming a spec area is built.
 - A full implementation of the spec was built, rejected and deleted — including stack
@@ -62,6 +62,11 @@ valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` 
   "simplify" either back.
 - **`dev1`–`dev5.ptm.local` are reserved, unclaimed vhost slots** — add a conf.d file
   when claiming one; never reuse a fixed service name for ad-hoc work.
+- **`App\Scheduler\DefaultSchedule` is the only `#[AsSchedule]` class** — attach every
+  `RecurringMessage` to it. A duplicate `'default'` is a hard container-compile error, but a
+  _second name_ compiles silently and never runs: `api-worker` consumes only
+  `async scheduler_default`. Messenger transports run `auto_setup=false`, so any new transport
+  needs its own migration, never worker-issued DDL.
 - **seaweedfs S3 auth lives in `_docker/seaweedfs/s3.json`**, mounted read-only into
   the container; `s3.ptm.local` proxies it 1:1 (SigV4 needs `Host` passed through
   unchanged, see `s3.conf`). Any future presigning must be signed against that
