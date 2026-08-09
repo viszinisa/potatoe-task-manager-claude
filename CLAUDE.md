@@ -30,7 +30,9 @@
 - Art signals make completions and blocked turns stand out in console output. NEVER hand-type or hand-concatenate this art — the filler is U+3000 (invisible), so hand-typed rows silently lose their trailing padding, which has produced misaligned art more than once. Run the script and paste its output verbatim; it is the only correct source.
     - `.claude/bin/agent-art.sh tick 1` when a task finishes, `tick 2` when the finished task produced a report/findings, `tick 3` when the entire assignment is complete.
     - `.claude/bin/agent-art.sh question` — exactly one question icon at the end of any response that ends by asking me something and waits for my answer.
-    - **HARD RULE:** every main-thread reply ends with exactly one signal, pasted by the model itself — `question` when the reply waits for my answer, `tick 3` when the assignment is complete. No hook emits this; forgetting it or emitting both is a broken turn.
+    - **HARD RULE:** every main-thread reply — and **only** a main-thread reply — ends with exactly one signal, pasted by the model itself: `question` when the reply waits for my answer, `tick 3` when the assignment is complete. No hook emits this; forgetting it or emitting both is a broken turn.
+    - **Sub-agents never emit art signals at all**, and never end on a signal-only or bare-status message ("✅ done"). The harness surfaces a sub-agent's last message as its report, so that last message must carry the full report content.
+    - A sub-agent return consisting only of a status line, art, or an emoji is a **failed dispatch**. The orchestrator does not guess at the work: re-request the report via `SendMessage` (the agent's transcript persists) or re-dispatch, and treat the work as unverified until a real report exists.
 
 ## Frontend
 
@@ -74,6 +76,12 @@
 - Trivial conversational replies (answering a question from context, a
   one-line clarification) need no sub-agent — but anything that touches
   files, tools, or external systems gets delegated.
+- *Process-record authoring is coordination work, not an exception to it.*
+  Ledger edits, plan-file amendments, review/smoke/decision artifact filing,
+  gate commits, merges and pushes are Fable's own work and are never
+  delegated for delegation's sake — the git-index rule (orchestrator
+  commits, sub-agents do not) already implies this. Everything else stays
+  delegated.
 Rule of thumb: if Fable is about to run a tool to do work rather than to
 coordinate work, stop and delegate it instead.
 
