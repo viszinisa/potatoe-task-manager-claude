@@ -11,12 +11,14 @@ not say.
 
 ## Current state
 
-- **The stack is a skeleton, not a product.** `api/src` holds `PingController`
-  and `HealthController` only; `frontend/app` is a single welcome route. No
-  entities, migrations, auth, storage layer or domain code exist — do not assume
-  any of it, and do not write code that references it.
-- **`_docs/spec.md` is the product spec and is entirely unimplemented.** There are no
-  implementation plans on disk — new ones are still to be written.
+- **Plan `v1-product` is under execution on branch `plan/v1-product`**, identity
+  (Authentik) landing first. Outside of what has actually landed on that branch,
+  `api/src` still holds `PingController`/`HealthController` only and
+  `frontend/app` a single welcome route — do not assume entities, migrations,
+  storage layer or other domain code exist, and do not write code that
+  references it.
+- **`_docs/spec.md` is the product spec** driving `v1-product`; check the plan
+  file for what section is in flight before assuming a spec area is built.
 - A full implementation of the spec was built, rejected and deleted — including stack
   services (an LDAP container existed once). **Git history itself was purged by design**:
   the current "initial commit" is a reset point, so `git log`/`git log -S` proving
@@ -37,6 +39,13 @@ not say.
   `api`/phpMyAdmin/Grafana reach the DB at `mysql.ptm.local:3306`, prometheus
   self-scrapes `https://prometheus.ptm.local`. Never add nginx network aliases: they
   resolve to the container and short-circuit the ingress being modelled.
+  **Carve-out:** `authentik-server`/`authentik-worker` → `authentik-postgres` runs
+  over plaintext compose service DNS, not `*.ptm.local` — there is no
+  `postgres.ptm.local` edge, and a platform service's own backing store is the
+  same class as nginx's own upstream hops, not an inter-service hop. **No
+  Redis/Valkey for Authentik, ever** (≥2025.10 stores cache/sessions in
+  PostgreSQL) and **no LDAP service locally** (spec makes LDAP prod-only
+  external) — do not "complete" the stack with either.
 - **nginx is the sole TLS edge** — `:443` for every vhost from one `ssl_certificate` in
   `http{}`, `:80` is a catch-all 301, hops behind the edge stay plaintext (no
   `fastcgi_ssl` exists). **No HSTS, deliberately:** `.local` pinning is painful to undo.
@@ -92,4 +101,13 @@ source path does not exist`; without it Docker creates a root-owned _directory_ 
   Always lint/format via `misc-inspect` (mounts the whole repo); this has bitten
   multiple agents.
 - **Benign log noise, do not chase:** MariaDB `io_uring_queue_init() failed with
-EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup.
+EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup,
+  and Authentik worker logging `relation "authentik_tasks_workerstatus" does not
+  exist` for its first ~70s until server migrations finish.
+- **Authentik's `/data/media` is a symlink to `/media`** — mounting the
+  `authentik_media` volume at `/data` persists nothing; it must mount at `/media`.
+- **Every new vhost must overwrite `X-Forwarded-For` with `$remote_addr`, never
+  append via `$proxy_add_x_forwarded_for`** — nginx is the outermost proxy, so
+  there is no upstream hop to preserve and appending lets a client spoof the
+  header. `authentik.ptm.local` follows this; copy it, not an append pattern
+  from elsewhere.
