@@ -13,10 +13,10 @@ not say.
 
 - **Plan `v1-product` is under execution on the `plan/v1-product*` branches**,
   identity (Authentik) first. Landed so far: the `users`/`user_group`/`api_token`
-  schema, the OIDC login wiring and API-token layer under `api/src/Security/`, and
-  the messenger/scheduler skeleton. Everything else is unbuilt — `frontend/app` is
-  a single welcome route, and there is no domain code, storage layer or admin
-  surface to reference.
+  schema, OIDC login + API-token layer under `api/src/Security/`, the
+  `/api/v1/auth/{oidc,oidc/callback,me,logout}` endpoints, and the messenger/
+  scheduler skeleton. Everything else is unbuilt — `frontend/app` is a single
+  welcome route, no domain code, storage layer or admin surface to reference.
 - **`_docs/spec.md` is the product spec** driving `v1-product`; check the plan
   file for what section is in flight before assuming a spec area is built.
 - A full implementation of the spec was built, rejected and deleted — including stack
@@ -33,12 +33,10 @@ not say.
   Do not re-add either.
 - **nginx's own upstream hops — every conf.d upstream and the `:3306` stream — use
   compose service DNS.** Every other inter-service hop dials the public `*.ptm.local`
-  name over TLS — `extra_hosts`
-  → `host-gateway` (the `x-ptm-hosts` anchor) sends it out to the host and back in
-  through the edge, deliberately modelling services that will not share a cluster.
-  `api`/phpMyAdmin/Grafana reach the DB at `mysql.ptm.local:3306`, prometheus
-  self-scrapes `https://prometheus.ptm.local`. Never add nginx network aliases: they
-  resolve to the container and short-circuit the ingress being modelled.
+  name over TLS — `extra_hosts` → `host-gateway` (the `x-ptm-hosts` anchor) sends it
+  out to the host and back through the edge, modelling services that won't share a
+  cluster. `api`/phpMyAdmin/Grafana reach the DB at `mysql.ptm.local:3306`, prometheus
+  self-scrapes `https://prometheus.ptm.local`. Never add nginx network aliases.
   **Carve-out:** `authentik-server`/`authentik-worker` → `authentik-postgres` runs
   over plaintext compose service DNS, not `*.ptm.local` — there is no
   `postgres.ptm.local` edge, and a platform service's own backing store is the
@@ -70,6 +68,9 @@ valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` 
   sha256 is stored (`api_token`), so revocation is a row delete. **Never move the `logout:`
   key onto `api`** — LogoutListener (-127) outranks AccessListener (-255) on a non-lazy
   firewall, which turns the endpoint into an anonymous 302 for everyone.
+- **`GET /api/v1/auth/me` roles are AS-HELD, not hierarchy-expanded** — floored
+  to `ROLE_EMPLOYEE` only; a `ROLE_MODERATOR` check must enumerate every
+  granting role, never a bare `.includes()`.
 - **`App\Scheduler\DefaultSchedule` is the only `#[AsSchedule]` class** — attach every
   `RecurringMessage` to it. A duplicate `'default'` is a hard container-compile error, but a
   _second name_ compiles silently and never runs: `api-worker` consumes only
@@ -122,13 +123,12 @@ EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY` retries at startup,
 exist` for its first ~70s until server migrations finish.
 - **Authentik's `/data/media` is a symlink to `/media`** — mounting the
   `authentik_media` volume at `/data` persists nothing; it must mount at `/media`.
-- **A failing Authentik blueprint is invisible**: containers stay healthy, the worker logs
-  `apply_blueprint … Task finished, exc: null`, and only
-  `authentik_blueprints_blueprintinstance.status` turns `error`. It also leaves the previously
-  applied objects intact, so a broken _edit_ still serves the old config. Assert
-  `/application/o/ptm/.well-known/openid-configuration`, never health. Blueprint passwords apply
-  on create only. Files live in `_docker/authentik/blueprints/` → `/blueprints/custom` (the image
-  owns `system/`, `default/`, `example/`).
+- **A failing Authentik blueprint is invisible**: containers stay healthy, the worker
+  logs `apply_blueprint … Task finished, exc: null`, and only
+  `authentik_blueprints_blueprintinstance.status` turns `error` — a broken _edit_ still
+  serves the old config since previously applied objects stay intact. Assert
+  `/application/o/ptm/.well-known/openid-configuration`, never health. Blueprint passwords
+  apply on create only. Files live in `_docker/authentik/blueprints/` → `/blueprints/custom`.
 - **Every new vhost must overwrite `X-Forwarded-For` with `$remote_addr`, never
   append via `$proxy_add_x_forwarded_for`** — nginx is the outermost proxy, so
   there is no upstream hop to preserve and appending lets a client spoof the
@@ -138,3 +138,13 @@ exist` for its first ~70s until server migrations finish.
   from the flex lock**, duplicating `#[AsSchedule('default')]` alongside
   `DefaultSchedule.php` — the container then hard-fails compilation. Delete the
   regenerated file again; never merge it.
+- **`oidc/callback`'s controller action never runs on a real callback** — drenso's
+  listener intercepts first; the route exists only so `RouterListener` doesn't 404
+  before the firewall. Success (`OidcLoginSuccessHandler`) mints an opaque
+  `ApiToken` → `API_TOKEN` httpOnly cookie → `session->invalidate()` (drenso's
+  `OidcToken` otherwise leaves raw IdP tokens/claims sitting in the session file)
+  → 302 to the stashed return path.
+- **`ReturnPathStash` accepts only `^/(?![/\\])`** — rejects absolute URLs,
+  protocol-relative `//` and normalized `/\`, guarding the post-login redirect.
+- **`/api/v1/auth/logout` is POST-only** — an anonymous GET 405s at routing,
+  never reaching the firewall; an "anonymous → 401" test must hit `/auth/me`.
