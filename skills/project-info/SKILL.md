@@ -11,12 +11,12 @@ not say.
 
 ## Current state
 
-- **Plan `v1-product` is under execution on branch `plan/v1-product`**, identity
-  (Authentik) landing first. Outside of what has actually landed on that branch,
-  `api/src` holds `PingController`/`HealthController` plus `Scheduler\DefaultSchedule`,
-  the only migration creates `messenger_messages`, and `frontend/app` is a single
-  welcome route — do not assume entities, storage layer or other domain code
-  exist, and do not write code that references them.
+- **Plan `v1-product` is under execution on the `plan/v1-product*` branches**,
+  identity (Authentik) first. Landed so far: the `users`/`user_group`/`api_token`
+  schema, the OIDC login wiring and API-token layer under `api/src/Security/`, and
+  the messenger/scheduler skeleton. Everything else is unbuilt — `frontend/app` is
+  a single welcome route, and there is no domain code, storage layer or admin
+  surface to reference.
 - **`_docs/spec.md` is the product spec** driving `v1-product`; check the plan
   file for what section is in flight before assuming a spec area is built.
 - A full implementation of the spec was built, rejected and deleted — including stack
@@ -62,6 +62,14 @@ valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` 
   "simplify" either back.
 - **`dev1`–`dev5.ptm.local` are reserved, unclaimed vhost slots** — add a conf.d file
   when claiming one; never reuse a fixed service name for ad-hoc work.
+- **API auth is an opaque token, not a session (spec amendment A-9).** Two firewalls in
+  `security.yaml`, order load-bearing: `auth` (`^/api/v1/auth/oidc`, `stateless: false`,
+  carries the drenso `oidc:` listener; its session only ferries `state`/`nonce`) is declared
+  **before** `api` (`^/api/v1`, `stateless: true`, `access_token` authenticator). The
+  credential is the httpOnly `API_TOKEN` cookie, then `Authorization: Bearer`; only its
+  sha256 is stored (`api_token`), so revocation is a row delete. **Never move the `logout:`
+  key onto `api`** — LogoutListener (-127) outranks AccessListener (-255) on a non-lazy
+  firewall, which turns the endpoint into an anonymous 302 for everyone.
 - **`App\Scheduler\DefaultSchedule` is the only `#[AsSchedule]` class** — attach every
   `RecurringMessage` to it. A duplicate `'default'` is a hard container-compile error, but a
   _second name_ compiles silently and never runs: `api-worker` consumes only
