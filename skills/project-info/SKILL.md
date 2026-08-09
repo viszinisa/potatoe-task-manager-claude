@@ -25,9 +25,21 @@ not say.
 ## Locked decisions
 
 - **No `container_name:`, and `frontend` publishes no host port** — both collided
-  with the unrelated `telemetry` stack. Top-level `name: ptm` gives `ptm-<service>-1`
-  instead; nginx on `:80` reaches the SPA via service DNS, since all inter-service
-  addressing uses compose SERVICE names. Do not re-add either.
+  with the unrelated `telemetry` stack. Top-level `name: ptm` gives `ptm-<service>-1`.
+  Do not re-add either.
+- **Only nginx's own upstreams use compose SERVICE names** (`api`, `frontend`). Every
+  other inter-service hop dials the public `*.ptm.local` name over TLS — `extra_hosts`
+  → `host-gateway` (the `x-ptm-hosts` anchor) sends it out to the host and back in
+  through the edge, deliberately modelling services that will not share a cluster.
+  `api`/phpMyAdmin/Grafana reach the DB at `mysql.ptm.local:3306`, prometheus
+  self-scrapes `https://prometheus.ptm.local`. Never add nginx network aliases: they
+  resolve to the container and short-circuit the ingress being modelled.
+- **nginx is the sole TLS edge** — `:443` for every vhost from one `ssl_certificate` in
+  `http{}`, `:80` is a catch-all 301, hops behind the edge stay plaintext (no
+  `fastcgi_ssl` exists). **No HSTS, deliberately:** `.local` pinning is painful to undo.
+  MariaDB is the exception: nginx cannot terminate its `:3306` stream (MySQL greets in
+  plaintext before the in-protocol TLS upgrade, so `ssl_preread` breaks it), so it
+  serves its own TLS end-to-end with `require_secure_transport = ON`.
 - **Every nginx upstream uses the resolver-variable pattern** (`resolver 127.0.0.11
 valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` —
   static targets refuse to start if the backend is down at boot; the variable form
@@ -42,6 +54,29 @@ valid=10s;` + `set $x_upstream ...;`), not a static `proxy_pass`/`fastcgi_pass` 
 
 ## Traps
 
+- **Cert material is gitignored — `_docker/nginx/ssl/` holds only `.gitkeep` on a fresh
+  clone.** Run `_docker/nginx/generate-certs.sh` before any `up` or smoke leg: missing
+  certs kill nginx outright and abort mariadb (`Failed to setup SSL`), cascading to
+  `api`. Every cert mount carries `create_host_path: false` so `up` fails with `bind
+source path does not exist`; without it Docker creates a root-owned _directory_ named
+  `rootCA.pem`, after which the generate script dies on `mv: … Permission denied` until
+  it is `rmdir`-ed. The key is mode 0644 on purpose (mariadb is uid 999), and
+  `_docker/nginx/ssl/` is mariadb's cert source despite the `nginx/` path.
+- **`_docker/mariadb/conf.d/` is bind-mounted, so a `.cnf` edit arms at the next
+  restart** — an unloadable `ssl` setting aborts the server, it does not degrade.
+  Sequence such edits with a controlled restart; never leave one sitting in the tree.
+- **Grafana reads the CA at provisioning time** (`secureJsonData.tlsCACert: $__file{}`),
+  not per query — regenerating `rootCA.pem` needs `docker compose restart grafana`.
+  `jsonData.tlsAuthWithCACert` is the mode selector that gates the read; `tlsCACertFile`
+  does not exist in this Grafana.
+- **nginx's `X-Forwarded-Proto` injection is unconditional**, so a client cannot strip
+  it — an A/B "with and without the header" test through the edge is not a real A/B.
+- **Playwright's `use.ignoreHTTPSErrors` propagates to the built-in `request` fixture.**
+  A CA-trust assertion needs its own strict context —
+  `request.newContext({ ignoreHTTPSErrors: false })` — which verifies via
+  `NODE_EXTRA_CA_CERTS`; against the default fixture the assertion is vacuous.
+- **prettier cannot parse `.conf`/`.cnf`/`.env`** — those stay unlinted; shellcheck
+  (`tools` profile) covers `.sh`, `nginx -t` is the de-facto nginx check.
 - **Renaming the compose project re-namespaces every volume.** Data looks lost; the
   old volumes still exist under the previous prefix (`docker volume ls`). Migrate or
   accept the reset deliberately — never assume corruption.

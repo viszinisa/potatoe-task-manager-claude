@@ -37,7 +37,7 @@ Add `--diff` to `check` to see what would change.
 
 PHP sources are bind-mounted into the containers (`./api` at `/var/www/api`),
 so a fix applies without an image rebuild — just re-verify
-(`curl localhost:80/api/v1/health`, the PHPUnit suite). Rebuild only when a
+(`curl --cacert _docker/nginx/ssl/rootCA.pem https://ptm.local/api/v1/health`, the PHPUnit suite). Rebuild only when a
 Dockerfile or `composer.json` changed.
 
 ## Everything else — misc-inspect
