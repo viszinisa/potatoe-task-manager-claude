@@ -1,21 +1,22 @@
 ---
 name: lint-code
-description: How to lint and auto-format code in this repo — php-inspect (PHP-CS-Fixer, Symfony ruleset) for PHP, misc-inspect (prettier) for YAML/JSON/Markdown and other prettier-supported files. Use after writing or editing code in this project, or whenever asked to lint, format, or fix code style.
+description: How to lint and auto-format code in this repo — php-inspect (PHP-CS-Fixer, Symfony ruleset) for PHP, misc-inspect (prettier) for YAML/JSON/Markdown and other prettier-supported files, shellcheck for shell scripts. Use after writing or editing code in this project, or whenever asked to lint, format, or fix code style.
 ---
 
 # Linting code in this repo
 
-All linting runs through two Docker Compose services under the `tools`
-profile (both network-less, running as uid 1000 so fixed files stay owned by
+All linting runs through three Docker Compose services under the `tools`
+profile (all network-less, running as uid 1000 so fixed files stay owned by
 the repo user). Pick the tool by file type:
 
 | File type                                            | Tool                      | Service        |
-| ---------------------------------------------------- | ------------------------- | -------------- |
+| ----------------------------------------------------- | ------------------------- | -------------- |
 | PHP (`api/`)                                         | PHP-CS-Fixer (`@Symfony`) | `php-inspect`  |
 | YAML, JSON, Markdown, and anything prettier supports | prettier                  | `misc-inspect` |
+| Shell scripts (`.sh`)                                | shellcheck                | `shellcheck`   |
 
 There is no overlap: prettier has no PHP plugin installed and skips `.php`
-files; PHP-CS-Fixer only sees `api/`.
+files; PHP-CS-Fixer only sees `api/`; neither reads `.sh`.
 
 ## PHP — php-inspect
 
@@ -63,10 +64,30 @@ services and check health: `_docker/prometheus/*` or
 an inline code span wraps across lines inside a list item. Fix: keep inline code spans on one line, indent list-item
 continuation paragraphs 2 spaces, re-run `--write` once.
 
+## Shell — shellcheck
+
+Official `koalaman/shellcheck` image; its entrypoint is the `shellcheck`
+binary itself, so pass file paths directly. The container mounts the whole
+repo read-only at `/code`, so use repo-relative paths:
+
+```bash
+docker compose --profile tools run --rm shellcheck _docker/api/docker-entrypoint.sh
+docker compose --profile tools run --rm shellcheck _docker/nginx/generate-certs.sh
+```
+
+No `--write` equivalent — shellcheck only reports; fix findings by hand. A
+false positive gets a targeted `# shellcheck disable=<code>` comment above
+the flagged line with a reason, never a blanket disable for the file. Do not
+apply a suggested rewrite that changes behaviour (e.g. SC2209 on an inline
+`VAR=val cmd` env-prefix idiom, which is correct shell, not a mistaken
+assignment).
+
 ## Version pins
 
 - PHP-CS-Fixer: image tag on the `php-inspect` service in `compose.yml`
   (`ghcr.io/php-cs-fixer/php-cs-fixer:<version>-php8.5`).
 - prettier + node: `_docker/misc-inspect/Dockerfile`.
+- shellcheck: image tag on the `shellcheck` service in `compose.yml`
+  (`koalaman/shellcheck:<version>`).
 
-Per CLAUDE.md, keep both on the newest available pinned versions.
+Per CLAUDE.md, keep all three on the newest available pinned versions.
