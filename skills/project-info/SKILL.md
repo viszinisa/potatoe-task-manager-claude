@@ -46,6 +46,9 @@ not say.
   Redis/Valkey for Authentik, ever** (≥2025.10 stores cache/sessions in
   PostgreSQL) and **no LDAP service locally** (spec makes LDAP prod-only
   external) — do not "complete" the stack with either.
+  **Second carve-out:** `api` → `mailpit:1025` over plaintext compose service DNS, not
+  `mail.ptm.local` — SMTP is not HTTP, so nginx cannot terminate it (only the HTTP UI/API
+  is proxied at `mail.ptm.local`). Never add an SMTP vhost to nginx for this.
 - **nginx is the sole TLS edge** — `:443` for every vhost from one `ssl_certificate` in
   `http{}`, `:80` is a catch-all 301, hops behind the edge stay plaintext (no
   `fastcgi_ssl` exists). **No HSTS, deliberately:** `.local` pinning is painful to undo.
