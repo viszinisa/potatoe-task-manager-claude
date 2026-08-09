@@ -144,7 +144,7 @@ exist` for its first ~70s until server migrations finish.
   `ApiToken` → `API_TOKEN` httpOnly cookie → `session->invalidate()` (drenso's
   `OidcToken` otherwise leaves raw IdP tokens/claims sitting in the session file)
   → 302 to the stashed return path.
-- **`ReturnPathStash` accepts only `^/(?![/\\])`** — rejects absolute URLs,
-  protocol-relative `//` and normalized `/\`, guarding the post-login redirect.
+- **Unsafe API requests need `X-XSRF-TOKEN` = the `XSRF-TOKEN` cookie** (`CsrfProtectionSubscriber`,
+  request prio 9; HMAC-bound to `API_TOKEN`, only `^/api/v1/auth/oidc` exempt, logout on ANY method).
 - **`/api/v1/auth/logout` is POST-only** — an anonymous GET 405s at routing,
   never reaching the firewall; an "anonymous → 401" test must hit `/auth/me`.
