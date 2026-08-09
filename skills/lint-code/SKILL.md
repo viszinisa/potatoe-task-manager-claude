@@ -10,7 +10,7 @@ profile (all network-less, running as uid 1000 so fixed files stay owned by
 the repo user). Pick the tool by file type:
 
 | File type                                            | Tool                      | Service        |
-| ----------------------------------------------------- | ------------------------- | -------------- |
+| ---------------------------------------------------- | ------------------------- | -------------- |
 | PHP (`api/`)                                         | PHP-CS-Fixer (`@Symfony`) | `php-inspect`  |
 | YAML, JSON, Markdown, and anything prettier supports | prettier                  | `misc-inspect` |
 | Shell scripts (`.sh`)                                | shellcheck                | `shellcheck`   |
