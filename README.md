@@ -12,7 +12,6 @@ Cloning this repo alone is not enough — the main repo is the working tree it c
     - `lint-code/` — how to run php-inspect / misc-inspect
 - `agents/` — project sub-agent definitions; `smoke-runner` shadows the same-named generic agent in `~/.claude/agents/`
 - `board-members.md` — lens roster the `decision-board` agent reads
-- `bin/agent-art.sh` — console art signals (`tick 1|2|3`, `question`)
 - `settings.json` — shared settings: model, marketplaces, enabled plugins, Bash permission allowlist
 - `settings.local.json` — machine-local overrides; untracked here, and also ignored by the main repo's `.gitignore`
 - `setup.sh` — symlink + git-exclude wiring, idempotent
@@ -24,7 +23,6 @@ Cloning this repo alone is not enough — the main repo is the working tree it c
 | `CLAUDE.md`                   | committed                   | Project hard rules (style, docker verification, orchestration policy)           |
 | `.claude/settings.json`       | committed                   | `model`, `extraKnownMarketplaces`, `enabledPlugins`, shared `permissions.allow` |
 | `.claude/skills/`             | committed                   | Project-vendored skills                                                         |
-| `.claude/bin/`                | committed                   | `agent-art.sh` — completion/question art generator                              |
 | `.mcp.json`                   | committed (**main** repo)   | Project MCP servers (Playwright)                                                |
 | `.claude/settings.local.json` | per-machine, gitignored     | Personal permission overrides on top of the committed allowlist                 |
 | `~/.claude/settings.json`     | user scope, never committed | Personal theme, `statusLine`, credentials                                       |
@@ -56,7 +54,6 @@ Then run `claude` from the main repo root. First start prompts to trust the mark
 - `CLAUDE.md` — always loaded into context. Carries the project's hard rules, including the Fable-orchestrates / sub-agents-execute model policy: the main conversation plans and delegates, work goes to sub-agents via the Agent tool with an explicit `model` override.
 - `skills/project-info` — stack background, and the place locked decisions and known traps get recorded as they are made.
 - `skills/lint-code` — exact `php-inspect` / `misc-inspect` invocations, one per file type, plus the non-idempotent-markdown prettier trap.
-- `bin/agent-art.sh` — generates the tick/question console art `CLAUDE.md` requires after task completion. Never hand-typed: the filler character is U+3000 (invisible), which silently drops from hand-typed rows.
 - `settings.json` — pins the model to `opus`, declares the three third-party marketplaces and the enabled plugin set, and allowlists the Bash commands agents run constantly (docker/compose) so they do not prompt.
 - `setup.sh` — the only thing standing between a fresh clone and a main repo that thinks `.claude/` is untracked project source.
 
