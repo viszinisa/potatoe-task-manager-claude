@@ -16,8 +16,7 @@ not say.
   OIDC login + API-token layer under `api/src/Security/`, the
   `/api/v1/auth/{oidc,oidc/callback,me,logout}` endpoints plus the `AdminVoter`-gated
   `/api/v1/admin/{users,groups}` admin API + the `/admin/{users,groups}` SPA pages (role-gated in-shell: `RequireAuth > AppShell > RoleGate` — the established pattern; `RequireRole` exists but has no app consumers),
-  `bin/console app:user:promote` (the only first-admin bootstrap; mirror rows come from login, roles only from admins or this command), the messenger/scheduler skeleton, and the SPA auth layer (`~/lib/api` incl. `put`, shared `admin/apiErrors.ts`, `<AuthProvider>`, `<RequireAuth>`,
-  the single `AppShell`; `/login` is the only public route). Everything else is unbuilt — no domain code or storage layer to reference.
+  `bin/console app:user:promote` (the only first-admin bootstrap; mirror rows come from login, roles only from admins or this command), the messenger/scheduler skeleton, and the SPA auth layer (`~/lib/api` incl. `put`, shared `admin/apiErrors.ts`, `<AuthProvider>`, `<RequireAuth>`, the single `AppShell`; `/login` is the only public route). Everything else is unbuilt — no domain code or storage layer to reference.
 - **`_docs/spec.md` is the product spec** driving `v1-product`; check the plan
   file for what section is in flight before assuming a spec area is built.
 - A full implementation of the spec was built, rejected and deleted — including stack
