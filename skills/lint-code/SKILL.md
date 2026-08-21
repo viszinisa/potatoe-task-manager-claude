@@ -1,6 +1,6 @@
 ---
 name: lint-code
-description: How to lint and auto-format code in this repo — php-inspect (PHP-CS-Fixer, Symfony ruleset) for PHP, misc-inspect (prettier) for YAML/JSON/Markdown and other prettier-supported files, shellcheck for shell scripts. Use after writing or editing code in this project, or whenever asked to lint, format, or fix code style.
+description: Use after writing or editing code in this project, or whenever asked to lint, auto-format or fix code style — php-inspect (PHP-CS-Fixer, Symfony ruleset) for PHP, misc-inspect (prettier) for YAML/JSON/Markdown and other prettier-supported files, shellcheck for shell scripts.
 ---
 
 # Linting code in this repo
@@ -9,11 +9,11 @@ All linting runs through three Docker Compose services under the `tools`
 profile (all network-less, running as uid 1000 so fixed files stay owned by
 the repo user). Pick the tool by file type:
 
-| File type                                            | Tool                      | Service        |
-| ---------------------------------------------------- | ------------------------- | -------------- |
-| PHP (`api/`)                                         | PHP-CS-Fixer (`@Symfony`) | `php-inspect`  |
-| YAML, JSON, Markdown, and anything prettier supports | prettier                  | `misc-inspect` |
-| Shell scripts (`.sh`)                                | shellcheck                | `shellcheck`   |
+| File type | Tool | Service |
+| --- | --- | --- |
+| PHP (`api/`) | PHP-CS-Fixer (`@Symfony`) | `php-inspect` |
+| YAML, JSON, Markdown, and anything prettier supports | prettier | `misc-inspect` |
+| Shell scripts (`.sh`) | shellcheck | `shellcheck` |
 
 There is no overlap: prettier has no PHP plugin installed and skips `.php`
 files; PHP-CS-Fixer only sees `api/`; neither reads `.sh`.
