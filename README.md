@@ -12,6 +12,7 @@ Cloning this repo alone is not enough — the main repo is the working tree it c
     - `lint-code/` — how to run php-inspect / misc-inspect
 - `agents/` — project sub-agent definitions; `smoke-runner` shadows the same-named generic agent in `~/.claude/agents/`
 - `board-members.md` — lens roster the `decision-board` agent reads
+- `evidence/` — per-file evidence sidecars for skills/agents (tallies, dates, war stories) per `evidence/README.md`
 - `settings.json` — shared settings: model, marketplaces, enabled plugins, Bash permission allowlist
 - `settings.local.json` — machine-local overrides; untracked here, and also ignored by the main repo's `.gitignore`
 - `setup.sh` — symlink + git-exclude wiring, idempotent

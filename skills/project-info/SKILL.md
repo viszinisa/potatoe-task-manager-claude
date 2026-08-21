@@ -1,6 +1,6 @@
 ---
 name: project-info
-description: Use when working on compose.yml, anything under _docker/, api/, the frontend/ SPA or the README here — background, locked decisions and traps for the Potatoe Task Manager stack (nginx vhosts, Symfony API, MariaDB, React Router SPA, seaweedfs, Prometheus, Grafana).
+description: Use when working on compose.yml, anything under _docker/, api/, the frontend/ SPA or the README here — background, locked decisions and traps for the Potatoe Task Manager Docker Compose stack (nginx vhosts, Symfony API, MariaDB, React Router SPA, seaweedfs, Prometheus, Grafana).
 ---
 
 # Potatoe Task Manager
@@ -89,7 +89,7 @@ the files do not say.
   match repo style. Always lint/format via `misc-inspect`, which mounts the whole repo.
 - **Benign log noise, do not chase:** MariaDB `io_uring_queue_init() failed with EPERM` (WSL2), Grafana provisioning warnings, `SQLITE_BUSY`
   retries at startup, and the Authentik worker logging `relation "authentik_tasks_workerstatus" does not exist` until server migrations
-  finish.
+  finish (roughly the first 70 s after a cold up).
 - **Authentik's `/data/media` is a symlink to `/media`** — mounting the `authentik_media` volume at `/data` persists nothing; it must mount
   at `/media`.
 - **A failing Authentik blueprint is invisible**: containers stay healthy, the worker logs `apply_blueprint … Task finished, exc: null`, and
