@@ -2,7 +2,7 @@
 
 | rule anchor (quoted fragment) | what happened | when (ISO) | commit/ref |
 | --- | --- | --- | --- |
-| "No `container_name:`, and `frontend` publishes no host port" | fixed container names and the published frontend port collided with the unrelated `telemetry` stack on the same host | 2026-08-21 (recorded; undated) | - |
+| "No `container_name:`, and `frontend` publishes no host port" | fixed container names and the published frontend port collided with the unrelated `telemetry` stack | 2026-08-21 (recorded; undated) | - |
 | "only proves it post-reset" | a full implementation of the spec — including stack services, an LDAP container among them — was built, rejected and deleted; git history was purged by design, leaving the current "initial commit" as the reset point | 2026-08-21 (recorded; undated) | - |
 | "carries `create_host_path: false`" | without the flag Docker created a root-owned directory named `rootCA.pem`; `generate-certs.sh` then died on `mv: … Permission denied` until it was `rmdir`-ed | 2026-08-21 (recorded; undated) | - |
 | "relation \"authentik_tasks_workerstatus\" does not exist" | observed as startup noise for roughly the first 70s after a cold `up`, until server migrations finished | 2026-08-21 (recorded; undated) | - |
